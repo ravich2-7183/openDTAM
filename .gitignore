@@ -1,0 +1,11 @@
+build/
+lib/
+*.o
+*.out
+*.png
+*~
+*.config
+*.creator*
+*.files
+*.includes
+

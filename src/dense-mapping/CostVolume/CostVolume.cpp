@@ -13,12 +13,12 @@ void CostVolume::checkInputs(const cv::Mat& R, const cv::Mat& t,
 							 const cv::Mat& image,
 							 const cv::Mat& cameraMatrix)
 {
-	assert(R.size() == Size(3, 3));
-	assert(R.type() == CV_64FC1);
-	assert(t.size() == Size(3, 1));
-	assert(t.type() == CV_64FC1);
-	assert(cameraMatrix.size() == Size(3, 3));
-	assert(cameraMatrix.type() == CV_64FC1);
+	CV_Assert(R.size() == Size(3, 3));
+	CV_Assert(R.type() == CV_64FC1);
+	CV_Assert(t.size() == Size(3, 1) || t.size() == Size(1, 3));
+	CV_Assert(t.type() == CV_64FC1);
+	CV_Assert(cameraMatrix.size() == Size(3, 3));
+	CV_Assert(cameraMatrix.type() == CV_64FC1);
 
 	// TODO remove this requirement
 	CV_Assert(image.type() == CV_32FC4);

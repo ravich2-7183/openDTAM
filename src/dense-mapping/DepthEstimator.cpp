@@ -75,9 +75,9 @@ void DepthEstimator::optimize()
 	aImg.create(rows, cols, CV_32FC1); 	dImg.create(rows, cols, CV_32FC1);
 	a.download(aImg);	d.download(dImg);
 	namedWindow("a", WINDOW_AUTOSIZE);
-	imshow("a", aImg*(1/costvolume.near)); 	waitKey(0);
+	imshow("a", aImg*(1/costvolume.near)); 	waitKey(10);
 	namedWindow("d", WINDOW_AUTOSIZE); 
-	imshow("d", dImg*(1/costvolume.near)); 	waitKey(0);
+	imshow("d", dImg*(1/costvolume.near)); 	waitKey(10);
 
 	unsigned int n = 1;
 	float theta = theta_start;
@@ -89,7 +89,7 @@ void DepthEstimator::optimize()
 		// TODO debug lines
 		d.download(dImg);
 		imshow("d", dImg*(1/costvolume.near));
-		waitKey(30);
+		waitKey(10);
 
 		// step 2.
 		costvolume.minimize_a(d, a, theta, lambda); // point wise search for a[] that minimizes Eaux
@@ -97,7 +97,7 @@ void DepthEstimator::optimize()
 		// TODO debug lines
 		a.download(aImg);
 		imshow("a", aImg*(1/costvolume.near));
-		waitKey(30);
+		waitKey(10);
 
 		// step 3.
 		float beta = (theta > 1e-3)? 1e-3 : 1e-4;

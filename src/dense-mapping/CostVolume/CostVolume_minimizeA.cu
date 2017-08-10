@@ -64,9 +64,9 @@ static __global__ void minimizeA(float* cdata, int rows, int cols,
 	a[i] += delta;
 }
 
-void minimizeACaller(float*cdata, int rows, int cols, int layers,
-					 float*a, float*d,
-					 float*d_Cmin,
+void minimizeACaller(float *cdata, int rows, int cols, int layers,
+					 float *a, float *d,
+					 float *d_Cmin,
 					 float far, float depthStep,
 					 float theta, float lambda)
 {

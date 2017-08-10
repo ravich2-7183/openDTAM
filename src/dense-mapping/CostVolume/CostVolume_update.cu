@@ -33,8 +33,8 @@ static inline __host__ __device__ float4 operator*(float b, float4 a)
     //                                                  \
     float x1f = floorf(xf); int x1 = lrintf(x1f);       \
     float x2f =  ceilf(xf); int x2 = lrintf(x2f);       \
-    float y1f = floorf(yf);     int y1 = lrintf(y1f);   \
-    float y2f =  ceilf(yf);     int y2 = lrintf(y2f);   \
+    float y1f = floorf(yf); int y1 = lrintf(y1f);       \
+    float y2f =  ceilf(yf); int y2 = lrintf(y2f);       \
                                                         \
     float4 f11 = A[x1 + y1*cols];                       \
     float4 f12 = A[x1 + y2*cols];                       \
@@ -53,6 +53,7 @@ static inline __host__ __device__ float4 operator*(float b, float4 a)
               f12*((x2f-xf)*(yf-y1f)) +                 \
               f22*((xf-x1f)*(yf-y1f)));                 \
 
+// TODO: replace the doubles with floats and check for any performance increase vs. lost accuracy 
 static __global__ void updateCostVolume(double* K, double* Kinv, double* Tmr,
 										int rows, int cols,
 										double near, double far, int layers, int layerStep,

@@ -1,5 +1,4 @@
-add_sources(./DepthEstimator.cpp
-			./CostVolume/CostVolume.cpp
+add_sources(./CostVolume/CostVolume.cpp
 			./CostVolume/CostVolume_minimizeA.cu
 			./CostVolume/CostVolume_update.cu
 			./Regulariser/Regulariser.cpp

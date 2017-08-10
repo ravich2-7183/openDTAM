@@ -6,16 +6,16 @@ Camera.rows: 480
 Camera.cols: 640
 
 # Camera calibration parameters (OpenCV) 
-Camera.fx: 508.353158
-Camera.fy: 510.167196
-Camera.cx: 311.288297
-Camera.cy: 235.728826
+Camera.fx: 516.694592 #508.353158
+Camera.fy: 516.865044 #510.167196
+Camera.cx: 322.716301 #311.288297
+Camera.cy: 245.584421 #235.728826
 
 # Camera distortion paremeters (OpenCV) --
-Camera.k1: 0.043922
-Camera.k2: -0.016877
-Camera.p1: 0.002922
-Camera.p2: -0.005741
+Camera.k1: 0.077913  #0.043922
+Camera.k2: -0.080010 #-0.016877
+Camera.p1: 0.002905  #0.002922
+Camera.p2: 0.001602  #-0.005741
 
 # Camera frames per second 
 Camera.fps: 24.0

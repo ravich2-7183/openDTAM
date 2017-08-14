@@ -31,20 +31,27 @@ void Regulariser::initialize(const GpuMat& referenceImageGray)
 
 void Regulariser::computeSigmas(float epsilon, float theta)
 {
-    /*
-	  The DTAM paper only provides a reference [3] for setting sigma_q & sigma_d
-	  
-	  [3] A. Chambolle and T. Pock. A first-order primal-dual 
-	  algorithm for convex problems with applications to imaging.
-	  Journal of Mathematical Imaging and Vision, 40(1):120-
-	  145, 2011.
-	  
-	  The relevant section of this dense paper is:
-	  Sec. 6.2.3 The Huber-ROF Model, ALG3
-    */
+/*
+	The DTAM paper only provides a reference [3] for setting sigma_q & sigma_d
 
-	//lower is better(longer steps), but in theory only >=4 is guaranteed to converge. For the adventurous, set to 2 or 1.44        
-	float L = 4.0;
+	[3] A. Chambolle and T. Pock. A first-order primal-dual
+	algorithm for convex problems with applications to imaging.
+	Journal of Mathematical Imaging and Vision, 40(1):120-
+	145, 2011.
+
+	The relevant section of this (equation) dense paper is:
+	Sec. 6.2.3 The Huber-ROF Model, ALG3
+	\gamma = \lambda = \theta in DTAM paper
+	\delta = \alpha = \epsilon i.e., Huber epsilon in DTAM paper
+
+	L is defined in Theorem 1 as L = ||K||, and ||K|| is defined in Sec. 2., Eqn. 1 as:
+	||K|| = max {Kx : x in X with ||x|| <= 1}.
+	In our case, working from eqn. 3 (see also Sec. 6.2.1 on how eqn. 3 is mapped to the ROF model),
+	K is the forward differentiation matrix with G weighting, (AG in the paper), so ||K|| = 2,
+	obtained for x = (0.5, -0.5, 0.5, -0.5, 0, 0, ..., 0). 
+*/
+
+	float L = 2.0;
 
 	float mu = 2.0*std::sqrt(epsilon/theta)/L;
 

@@ -33,7 +33,7 @@ camera.p1: 0.002905  #0.002922
 camera.p2: 0.001602  #-0.005741
 
 # Camera frames per second 
-camera.fps: 1.0
+camera.fps: 30
 
 # Color order of the images (0: BGR, 1: RGB. It is ignored if images are grayscale)
 camera.RGB: 1
@@ -42,20 +42,20 @@ camera.RGB: 1
 ## Changing the parameters below to improve the performance of the openDTAM system
 
 # Cost Volume properties
-costvolume.images_per_costvolume : 6
-costvolume.layers                : 32
-costvolume.near_inverse_distance : 100 # change to .002 or slightly larger
-costvolume.far_inverse_distance  : 0.2 # 0.0 
+costvolume.images_per_costvolume : 10
+costvolume.layers                : 64
+costvolume.near_inverse_distance : 10 # change to .002 or slightly larger
+costvolume.far_inverse_distance  : 0.3 # 0.0 
 
 # Regulariser parameters
 # G parameters
-regulariser.alpha_G : 0.0 #3.5
-regulariser.beta_G  : 0.5  #1.0
+regulariser.alpha_G : 3.5 # 0.0
+regulariser.beta_G  : 0.5 # 1.0
 
 # Optimizer parameters
 optimizer.theta_start  :  0.2
 optimizer.theta_min    :  1.0e-4
 optimizer.theta_step   :  0.97
-optimizer.epsilon      :  0.10 # huber epsilon
-optimizer.lambda       :  1.0 # regularizing strength # TODO needs to be dynamically altered
+optimizer.epsilon      :  0.05 # 1e-4 # huber epsilon
+optimizer.lambda       :  0.5 # regularizing strength # TODO needs to be dynamically altered
 optimizer.denoiserItrs : 10

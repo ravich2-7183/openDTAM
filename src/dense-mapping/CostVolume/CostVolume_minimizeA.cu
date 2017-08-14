@@ -3,17 +3,20 @@
 #include <opencv2/core/core.hpp>
 #include "CostVolume.cuh"
 
-#define SET_Z_START()                               \
-	float d_start = di - fabsf(di-dmin);            \
-	z = lrintf(floorf((d_start - far)/depthStep));  \
-	z = (z<0)? 0 : z;                               \
-	z_start = z;                                    \
+// Using a corrected version of the accelerated search method:
+// a_min must lie between [(d_i-d_min), (d_i+d_min)]
 
-#define SET_Z_END()                                 \
-	float d_end = di + fabsf(di-dmin);              \
-	z = lrintf(ceilf((d_end - far)/depthStep));     \
-	z = (z>(layers-1))? (layers-1) : z;             \
-	z_end = z;                                      \
+#define SET_start_layer()                                   \
+    float d_start = di - fabsf(di-dmin);                    \
+    layer = lrintf(floorf((d_start - far)/depthStep)) - 1;  \
+    layer = (layer<0)? 0 : layer;                           \
+    start_layer = layer;                                    \
+
+#define SET_end_layer()                                     \
+    float d_end = di + fabsf(di-dmin);                      \
+    layer = lrintf(ceilf((d_end - far)/depthStep)) + 1;     \
+    layer = (layer>(layers-1))? (layers-1) : layer;         \
+    end_layer = layer;                                      \
 
 __device__
 static inline float Eaux(float theta, float di, float aIdx, float far, float depthStep, float lambda, float costval)
@@ -22,7 +25,7 @@ static inline float Eaux(float theta, float di, float aIdx, float far, float dep
 	return (0.5f/theta)*((di-ai)*(di-ai)) + lambda*costval; // TODO beware float substraction
 }
 
-static __global__ void minimizeA(float* cdata, int rows, int cols,
+static __global__ void minimizeA(float* cost, int rows, int cols,
 								 float* a, float* d,
 								 float* d_Cmin,
 								 float far, float depthStep, int layers,
@@ -37,29 +40,29 @@ static __global__ void minimizeA(float* cdata, int rows, int cols,
 	const float di		  = d[i];
 	const float dmin	  = d_Cmin[i];
 
-	int	  minz = 0;
-	float minv = 1e+30;
+    int minl = 0;
+    float Eaux_min = 1e+30;
 	// #pragma unroll 4 // TODO what does the 4 do?
-	int z, z_start, z_end;
-	SET_Z_START();
-	SET_Z_END();
-	for(int z=z_start; z<=z_end; z++) {
-		float c = Eaux(theta, di, z, far, depthStep, lambda, cdata[i+z*layerStep]);
-		if(c < minv) {
-			minv = c;
-			minz = z;
+    int layer, start_layer, end_layer;
+	SET_start_layer();
+	SET_end_layer();
+    for(int l=start_layer; l<=end_layer; l++) {
+        float c = Eaux(theta, di, l, far, depthStep, lambda, cost[i+l*layerStep]);
+        if(c < Eaux_min) {
+            Eaux_min = c;
+            minl = l;
 		}
 	}
 
-	a[i] = far + float(minz)*depthStep;
+    a[i] = far + float(minl)*depthStep;
 
-	if(minz == 0 || minz == layers-1) // first or last was best
+    if(minl == 0 || minl == layers-1) // first or last was best
 		return;
 
 	// sublayer sampling as the minimum of the parabola with the 2 points around (minz, minv)
-	float A = Eaux(theta, di, minz-1, far, depthStep, lambda, cdata[i+(minz-1)*layerStep]);
-	float B = minv;
-	float C = Eaux(theta, di, minz+1, far, depthStep, lambda, cdata[i+(minz+1)*layerStep]);
+    float A = Eaux(theta, di, minl-1, far, depthStep, lambda, cost[i+(minl-1)*layerStep]);
+    float B = Eaux_min;
+    float C = Eaux(theta, di, minl+1, far, depthStep, lambda, cost[i+(minl+1)*layerStep]);
 	float delta = ((A+C)==2*B)? 0.0f : ((A-C)*depthStep)/(2*(A-2*B+C));
 	a[i] += delta;
 }

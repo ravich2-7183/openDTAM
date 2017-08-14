@@ -38,9 +38,9 @@ CostVolume::CostVolume(float _rows, float _cols, float _layers, float _near, flo
 	cv::gpu::createContinuous(rows, cols, CV_32FC1, CminIdx);
 
 	// TODO reorg as (rows*cols, layers) instead of current (layers, rows*cols)
-	cv::gpu::createContinuous(layers, rows*cols, CV_32FC1, dataContainer); // TODO rename dataContainer to costdata
+    cv::gpu::createContinuous(layers, rows*cols, CV_32FC1, cost_data);
 
-	cdata = (float*) dataContainer.data;
+    cdata = (float*) cost_data.data;
 
 	cv::gpu::createContinuous(3, 3, CV_64FC1, K);
 	cv::gpu::createContinuous(3, 3, CV_64FC1, Kinv);
@@ -83,9 +83,9 @@ void CostVolume::reset(const cv::Mat& image, const cv::Mat& Kcpu, const cv::Mat&
 	referenceImage.upload(image);
 	cv::gpu::cvtColor(referenceImage, referenceImageGray, CV_RGBA2GRAY); // TODO ensure input image is always RGBA
 
-	dataContainer = 0.0;
+    cost_data = 0.0;
 	
-	count = 1.0f;
+	count = 0.0f;
 }
 
 // TODO to increase throughput, use async functions to copy from host to device
@@ -104,7 +104,7 @@ void CostVolume::updateCost(const Mat& image, const cv::Mat& Rmw, const cv::Mat&
 	Tmr = Tmw*Twr;
 	Tmr_gpu.upload(Tmr);
 
-	// TODO check this carefully, why doesn't using dataContainer.step instead of rows*cols not work?
+	// TODO check this carefully, why isn't dataContainer.step == rows*cols?
 	updateCostVolumeCaller( (double*)K.data, (double*)Kinv.data, (double*)Tmr_gpu.data,
 							rows, cols, currentImage.step,
 							near, far, layers, rows*cols, 

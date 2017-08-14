@@ -57,7 +57,7 @@ static inline __host__ __device__ float4 operator*(float b, float4 a)
 static __global__ void updateCostVolume(double* K, double* Kinv, double* Tmr,
 										int rows, int cols,
 										double near, double far, int layers, int layerStep,
-										float* Cdata, float count,
+                                        float* Cost, float count,
 										float* Cmin, float* Cmax, float* CminIdx,
 										float4* referenceImage, float4* currentImage, bool useTextureMemory)
 {
@@ -73,10 +73,10 @@ static __global__ void updateCostVolume(double* K, double* Kinv, double* Tmr,
 
 	float4 Ir = referenceImage[i];
 
-	int	  minz = 0; // TODO set to layers?
-	float minv = 1e+30, maxv = 0.0;
-	for(int z=0; z < layers; z++) { // TODO how to handle z == 0?
-		double d = far + double(z)*depthStep;
+    int	  minl = layers-1; // TODO set to layers?
+    float Cost_min = 1e+30, Cost_max = 0.0;
+    for(int l=layers-1; l >= 0; l--) { // TODO march from front to back, i.e., l = layers -> 0 and check results. 
+        double d = far + double(l)*depthStep;
 		// 0 1 2
 		// 3 4 5
 		// 6 7 8
@@ -93,16 +93,18 @@ static __global__ void updateCostVolume(double* K, double* Kinv, double* Tmr,
 		// 0 1 2
 		// 3 4 5
 		// 6 7 8
-		float um = K[0]*xm/zm + K[2];
-		float vm = K[4]*ym/zm + K[5];
+		float um = K[0]*(xm/zm) + K[2];
+		float vm = K[4]*(ym/zm) + K[5];
 
-		// if( (um > float(cols)) || (um < 0.0f) || (vm > float(rows)) || (vm < 0.0f) )
-		//		continue;
+		// TODO uncomment these lines and check results
+		if( (um > float(cols)) || (um < 0.0f) || (vm > float(rows)) || (vm < 0.0f) )
+			continue;
 
 		// TODO if corresponding pixel is out of the image, then apply a penalty. 
 		// TODO right now this is being rewarded, as nothing is added to the cost in this case.
 		// TODO best way might be to use a per pixel count, recording number of hits. requires more careful thought. 
 
+		// TODO use each exclusively and compare results
 		float4 Im;
 		if(useTextureMemory) {
 			Im = tex2D(currentImageTexRef, um, vm);
@@ -112,18 +114,18 @@ static __global__ void updateCostVolume(double* K, double* Kinv, double* Tmr,
 		}
 
 		float rho = fabsf(Im.x - Ir.x) + fabsf(Im.y - Ir.y) + fabsf(Im.z - Ir.z);
-		Cdata[i+z*layerStep] = (Cdata[i+z*layerStep]*(count-1) + rho) / count; // TODO: maintain per pixel count?
-		float Ciz = Cdata[i+z*layerStep];
-		if(Ciz < minv) {
-			minv = Ciz;
-			minz = z;
+        Cost[i+l*layerStep] = (Cost[i+l*layerStep]*(count-1) + rho) / count; // TODO: maintain per pixel count?
+        float Cost_l = Cost[i+l*layerStep];
+        if(Cost_l <= Cost_min) {
+            Cost_min = Cost_l;
+            minl = l;
 		}
-		maxv = fmaxf(Ciz, maxv);
+        Cost_max = fmaxf(Cost_l, Cost_max);
 	}
 
-	Cmin[i]	   = minv;
-	CminIdx[i] = far + float(minz)*depthStep; // scaling is done when used in DepthEstimator::optimize
-	Cmax[i]	   = maxv;
+    Cmin[i]	   = Cost_min;
+    CminIdx[i] = far + float(minl)*depthStep; // scaling is done when used in DepthEstimator::optimize
+    Cmax[i]	   = Cost_max;
 }
 
 void updateCostVolumeCaller(double* K, double* Kinv, double* Tmr,

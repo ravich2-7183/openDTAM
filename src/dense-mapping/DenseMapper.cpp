@@ -49,13 +49,11 @@ DenseMapper::DenseMapper(const cv::FileStorage& settings_file) :
 
 	cv::gpu::createContinuous(rows_, cols_, CV_32FC1, a_);
 	cv::gpu::createContinuous(rows_, cols_, CV_32FC1, d_);
-
-	point_cloud_ptr_->points.push_back(pcl::PointXYZRGB());
 }
 
 void DenseMapper::receiveImageStream()
 {
-	sub_ = nh_.subscribe("/camera/image_raw", 1, &DenseMapper::processImage, this);
+    sub_ = nh_.subscribe("/camera/image_raw", 5, &DenseMapper::processImage, this);
 	ros::spin();
 }
 
@@ -66,7 +64,10 @@ void DenseMapper::processImage(const sensor_msgs::ImageConstPtr& image_msg)
 		input_bridge_ = cv_bridge::toCvCopy(image_msg); // TODO: use cv_bridge::toCvShare instead?
 		image_ = input_bridge_->image; // TODO: is this copy required?
 		image_.convertTo(image_, CV_32FC3, 1.0/255.0); // float image [0-1] // TODO: make this more generic
-		cvtColor(image_, image_, CV_RGB2RGBA);
+		cvtColor(image_, image_, CV_RGB2RGBA); // TODO check if image is in BGR format
+
+		// TODO debug lines
+		cout << "Received image with time stamp: " << image_msg->header.stamp << endl;
 	}
 	catch (cv_bridge::Exception& ex) {
 		ROS_ERROR("[DenseMapper] Failed to convert image: \n%s", ex.what());
@@ -81,6 +82,12 @@ void DenseMapper::processImage(const sensor_msgs::ImageConstPtr& image_msg)
 									  acquisition_time, timeout);
 		tf_listener_.lookupTransform("/ORB_SLAM/World", "/ORB_SLAM/Camera",
 									 acquisition_time, transform_);
+
+		// tf_listener_.lookupTransform("/ORB_SLAM/World", "/ORB_SLAM/Camera",
+		// 							 ros::Time(0), transform_);
+
+		// TODO debug lines
+		cout << "Received transform with time stamp: " << transform_.stamp_ << endl;
 	}
 	catch (tf::TransformException& ex) {
 		ROS_WARN("[DenseMapper] TF exception: \n%s", ex.what());
@@ -107,7 +114,7 @@ void DenseMapper::processImage(const sensor_msgs::ImageConstPtr& image_msg)
 	tcw = (-Rcw.t())*tcw;
 	Rcw =  Rcw.t();
 
-	if(im_count_ % imagesPerCostVolume_ == 0) {
+	if(im_count_ % imagesPerCostVolume_ == 0) { // TODO replace im_count_ with internal variable
 		if(im_count_ != 0) {
 			this->optimize();
 		}
@@ -117,6 +124,7 @@ void DenseMapper::processImage(const sensor_msgs::ImageConstPtr& image_msg)
 	}
 	else {
 		this->updateCostVolume(image_, Rcw, tcw);
+		// TODO print message
 	}
 
 	im_count_++;
@@ -124,18 +132,18 @@ void DenseMapper::processImage(const sensor_msgs::ImageConstPtr& image_msg)
 
 void DenseMapper::resetCostVolume(const cv::Mat& image, const cv::Mat& Rrw, const cv::Mat& trw)
 {
-    costvolume_.reset(image, camera_matrix_, Rrw, trw);
-    regulariser_.initialize(costvolume_.referenceImageGray);
+	costvolume_.reset(image, camera_matrix_, Rrw, trw);
+	regulariser_.initialize(costvolume_.referenceImageGray);
 }
 
 void DenseMapper::updateCostVolume(const Mat& image, const cv::Mat& Rmw, const cv::Mat& tmw)
 {
-    costvolume_.updateCost(image, Rmw, tmw);
+	costvolume_.updateCost(image, Rmw, tmw);
 }
 
 void DenseMapper::getDepth(Mat& depth_map)
 {
-    d_.download(depth_map);
+	d_.download(depth_map);
 }
 
 void DenseMapper::createPointCloud()
@@ -145,25 +153,25 @@ void DenseMapper::createPointCloud()
 
 	Mat depth, Kinv, referenceImage;
 
-	depth.create(rows_, cols_, CV_32FC1);
-    d_.download(depth);
-	depth = depth*(1/costvolume_.near);
+	// depth.create(rows_, cols_, CV_32FC1);
+	d_.download(depth);
+	// depth = depth*(1/costvolume_.near);
 
-    costvolume_.Kinv.download(Kinv);
-    costvolume_.referenceImage.download(referenceImage);
+	costvolume_.Kinv.download(Kinv);
+	costvolume_.referenceImage.download(referenceImage);
 
 	// create point cloud from depth map
 	point_cloud_ptr_->points.clear();
-    for(int u=0; u<rows_; u++) {
-        for(int v=0; v<cols_; v++) {
+	for(int v=0; v<rows_; v++) {
+		for(int u=0; u<cols_; u++) {
 			pcl::PointXYZRGB point;
 			
-			point.z = 1.0/depth.at<float>(u,v);
+			point.z = 1.0/depth.at<float>(v,u);
 			point.x = (Kinv.at<double>(0,0)*u + Kinv.at<double>(0,2)) * point.z;
 			point.y = (Kinv.at<double>(1,1)*v + Kinv.at<double>(1,2)) * point.z;
-			point.b = static_cast<uint8_t>(referenceImage.at<cv::Vec4f>(u,v)[0] * 255);
-			point.g = static_cast<uint8_t>(referenceImage.at<cv::Vec4f>(u,v)[1] * 255);
-			point.r = static_cast<uint8_t>(referenceImage.at<cv::Vec4f>(u,v)[2] * 255);
+			point.b = static_cast<uint8_t>(referenceImage.at<cv::Vec4f>(v,u)[0] * 255);
+			point.g = static_cast<uint8_t>(referenceImage.at<cv::Vec4f>(v,u)[1] * 255);
+			point.r = static_cast<uint8_t>(referenceImage.at<cv::Vec4f>(v,u)[2] * 255);
 			
 			point_cloud_ptr_->points.push_back(point);
 		}
@@ -175,12 +183,12 @@ void DenseMapper::createPointCloud()
 void DenseMapper::showPointCloud()
 {
 	// Setup PCL 3D point cloud viewer and start thread
-	// boost::shared_ptr<pcl::visualization::PCLVisualizer> viewer(new pcl::visualization::PCLVisualizer("Projected Depth Image"));
-	boost::shared_ptr<pcl::visualization::PCLVisualizer> viewer (new pcl::visualization::PCLVisualizer ("3D Viewer"));
+	boost::shared_ptr<pcl::visualization::PCLVisualizer> viewer(new pcl::visualization::PCLVisualizer("Projected Depth Image"));
+
+	point_cloud_ptr_->points.push_back(pcl::PointXYZRGB());
+	pcl::visualization::PointCloudColorHandlerRGBField<pcl::PointXYZRGB> rgb(point_cloud_ptr_);
 
 	viewer->setBackgroundColor(0, 0, 0);
-	pcl::visualization::PointCloudColorHandlerRGBField<pcl::PointXYZRGB> rgb(point_cloud_ptr_);
-	// viewer->addPointCloud<pcl::PointXYZRGB>(point_cloud_ptr_, rgb, "projected_depth_image");
 	viewer->setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 3, "projected_depth_image");
 	viewer->addCoordinateSystem(1.0);
 	viewer->initCameraParameters();
@@ -203,44 +211,49 @@ void DenseMapper::showPointCloud()
 void DenseMapper::optimize()
 {
 	// Initialize a, d
-    costvolume_.CminIdx.copyTo(a_);
-    costvolume_.CminIdx.copyTo(d_);
+	costvolume_.CminIdx.copyTo(a_);
+	costvolume_.CminIdx.copyTo(d_);
 
 	// TODO debug lines
 	cout << "Optimization start: --------" << endl;
 	Mat aImg, dImg; //
-    aImg.create(rows_, cols_, CV_32FC1); 	dImg.create(rows_, cols_, CV_32FC1);
-    a_.download(aImg);	d_.download(dImg);
+	aImg.create(rows_, cols_, CV_32FC1);	dImg.create(rows_, cols_, CV_32FC1);
 	namedWindow("a", WINDOW_AUTOSIZE);
-    imshow("a", aImg*(1/costvolume_.near)); 	waitKey(10);
-	namedWindow("d", WINDOW_AUTOSIZE); 
-    imshow("d", dImg*(1/costvolume_.near)); 	waitKey(10);
+	namedWindow("d", WINDOW_AUTOSIZE);
+
+	a_.download(aImg);	d_.download(dImg);
+	imshow("a", aImg*(1/costvolume_.near));		waitKey(10); // scale float image to lie in [0-1]
+	imshow("d", dImg*(1/costvolume_.near));		waitKey(10);
+
+	createPointCloud();
 
 	unsigned int n = 1;
-    float theta = theta_start_;
-	// while(theta > theta_min) {
-	while(n < 100) {
+	float theta = theta_start_;
+	while(theta > theta_min_) {
+	// while(n < 100) {
 		// step 1. update_q_d must be called before minimize_a or else no progress will be made
-        regulariser_.update_q_d(a_, d_, epsilon_, theta); 
+		regulariser_.update_q_d(a_, d_, epsilon_, theta);
 
-		// TODO debug lines
-        d_.download(dImg);
-        imshow("d", dImg*(1/costvolume_.near));
-		waitKey(10);
 
 		// step 2.
-        costvolume_.minimize_a(d_, a_, theta, lambda_); // point wise search for a[] that minimizes Eaux
-		
-		// TODO debug lines
-        a_.download(aImg);
-        imshow("a", aImg*(1/costvolume_.near));
-		waitKey(10);
+		costvolume_.minimize_a(d_, a_, theta, lambda_); // point wise search for a[] that minimizes Eaux
+
 
 		// step 3.
 		float beta = (theta > 1e-3)? 1e-3 : 1e-4;
 		theta *= (1-beta*n);
 		n++;
 	}
+
+	// TODO debug lines
+	d_.download(dImg);
+	imshow("d", dImg*(1/costvolume_.near));
+	waitKey(10);
+
+	// TODO debug lines
+	a_.download(aImg);
+	imshow("a", aImg*(1/costvolume_.near));
+	waitKey(10);
 
 	// TODO debug lines
 	createPointCloud();

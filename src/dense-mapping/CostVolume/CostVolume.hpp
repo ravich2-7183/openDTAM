@@ -27,7 +27,7 @@ public:
 	cv::gpu::GpuMat Cmax; // TODO unnecessary variable
 	cv::gpu::GpuMat CminIdx; // TODO a better name: d_Cmin?
 
-	cv::gpu::GpuMat dataContainer; // TODO rename this to Cdata for consistency
+    cv::gpu::GpuMat cost_data; // TODO rename this to Cdata for consistency
 	float *cdata; // TODO unnecessary variable
 
 	float count;

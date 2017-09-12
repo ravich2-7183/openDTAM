@@ -3,9 +3,9 @@
 
 #include <opencv2/gpu/device/common.hpp>
 
-void updateCostVolumeCaller(double* K, double* Kinv, double* Tmr,
+void updateCostVolumeCaller(float* K, float* Kinv, float* Tmr,
                             int rows, int cols, int imageStep, 
-                            double near, double far, int layers, int layerStep,
+                            float near, float far, int layers, int layerStep,
                             float* Cdata, float count, 
 							float* Cmin, float* Cmax, float* CminIdx,
                             float4* referenceImage, float4* currentImage, bool useTextureMemory);

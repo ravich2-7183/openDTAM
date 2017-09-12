@@ -3,7 +3,7 @@
 #include <opencv2/core/core.hpp>
 #include "CostVolume.cuh"
 
-// Using a corrected version of the accelerated search method:
+// Using a different version of the accelerated search method:
 // a_min must lie between [(d_i-d_min), (d_i+d_min)]
 
 #define SET_start_layer()                                   \
@@ -38,7 +38,7 @@ static __global__ void minimizeA(float* cost, int rows, int cols,
 
 	const int	layerStep = rows*cols;
 	const float di		  = d[i];
-	const float dmin	  = d_Cmin[i];
+	const float dmin	  = d_Cmin[i]; // used for setting start_layer and end_layer
 
     int minl = 0;
     float Eaux_min = 1e+30;
@@ -64,6 +64,7 @@ static __global__ void minimizeA(float* cost, int rows, int cols,
     float B = Eaux_min;
     float C = Eaux(theta, di, minl+1, far, depthStep, lambda, cost[i+(minl+1)*layerStep]);
 	float delta = ((A+C)==2*B)? 0.0f : ((A-C)*depthStep)/(2*(A-2*B+C));
+	delta = (fabsf(delta) > depthStep)? 0.0f : delta;
 	a[i] += delta;
 }
 

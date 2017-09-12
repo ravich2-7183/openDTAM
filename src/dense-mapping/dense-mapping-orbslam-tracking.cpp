@@ -1,6 +1,8 @@
 #include <string>
 #include <iostream>
 
+#include <ros/ros.h>
+
 #include "DenseMapper.hpp"
 
 // test program for the mapper, using camera poses from orb_slam
@@ -21,12 +23,20 @@ int main(int argc, char** argv) {
 
 	DenseMapper dense_mapper(settings_file);
 	
+	// Setting up dynamic reconfigure
+	dynamic_reconfigure::Server<openDTAM::openDTAMConfig> dr_server;
+	dynamic_reconfigure::Server<openDTAM::openDTAMConfig>::CallbackType dr_cb;
+
+	dr_cb = boost::bind(&DenseMapper::dynamicReconfigCallback, &dense_mapper, _1, _2);
+	dr_server.setCallback(dr_cb);
+
+	// Start up mapper and visualizer threads
 	boost::thread dense_mapper_thread(&DenseMapper::receiveImageStream, &dense_mapper);
 	boost::thread pointcloud_visualiser_thread(&DenseMapper::showPointCloud, &dense_mapper);
 
 	dense_mapper_thread.join();
 	pointcloud_visualiser_thread.join();
-	
+
 	ros::shutdown();
 	return 0;
 }

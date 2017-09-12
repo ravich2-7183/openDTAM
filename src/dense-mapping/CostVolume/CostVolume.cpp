@@ -14,11 +14,11 @@ void CostVolume::checkInputs(const cv::Mat& R, const cv::Mat& t,
 							 const cv::Mat& cameraMatrix)
 {
 	CV_Assert(R.size() == Size(3, 3));
-	CV_Assert(R.type() == CV_64FC1);
+	CV_Assert(R.type() == CV_32FC1);
 	CV_Assert(t.size() == Size(3, 1) || t.size() == Size(1, 3));
-	CV_Assert(t.type() == CV_64FC1);
+	CV_Assert(t.type() == CV_32FC1);
 	CV_Assert(cameraMatrix.size() == Size(3, 3));
-	CV_Assert(cameraMatrix.type() == CV_64FC1);
+	CV_Assert(cameraMatrix.type() == CV_32FC1);
 
 	// TODO remove this requirement
 	CV_Assert(image.type() == CV_32FC4);
@@ -42,10 +42,10 @@ CostVolume::CostVolume(float _rows, float _cols, float _layers, float _near, flo
 
     cdata = (float*) cost_data.data;
 
-	cv::gpu::createContinuous(3, 3, CV_64FC1, K);
-	cv::gpu::createContinuous(3, 3, CV_64FC1, Kinv);
+	cv::gpu::createContinuous(3, 3, CV_32FC1, K);
+	cv::gpu::createContinuous(3, 3, CV_32FC1, Kinv);
 	
-	cv::gpu::createContinuous(4, 4, CV_64FC1, Tmr_gpu);
+	cv::gpu::createContinuous(4, 4, CV_32FC1, Tmr_gpu);
 	
 	cv::gpu::createContinuous(rows, cols, CV_32FC4, referenceImage);
 	cv::gpu::createContinuous(rows, cols, CV_32FC4, currentImage);
@@ -59,21 +59,21 @@ void CostVolume::reset(const cv::Mat& image, const cv::Mat& Kcpu, const cv::Mat&
 
 	Rwr =  Rrw.t();
 	twr = -Rrw.t()*trw;
-	Twr = (Mat_<double>(4,4) <<
-		   Rwr.at<double>(0,0), Rwr.at<double>(0,1), Rwr.at<double>(0,2), twr.at<double>(0),
-		   Rwr.at<double>(1,0), Rwr.at<double>(1,1), Rwr.at<double>(1,2), twr.at<double>(1),
-		   Rwr.at<double>(2,0), Rwr.at<double>(2,1), Rwr.at<double>(2,2), twr.at<double>(2),
+	Twr = (Mat_<float>(4,4) <<
+		   Rwr.at<float>(0,0), Rwr.at<float>(0,1), Rwr.at<float>(0,2), twr.at<float>(0),
+		   Rwr.at<float>(1,0), Rwr.at<float>(1,1), Rwr.at<float>(1,2), twr.at<float>(1),
+		   Rwr.at<float>(2,0), Rwr.at<float>(2,1), Rwr.at<float>(2,2), twr.at<float>(2),
 		   0,					0,					 0,				      1);
 	
 	K.upload(Kcpu);
 
-	double fx, fy, cx, cy;
-	fx = Kcpu.at<double>(0,0);
-	fy = Kcpu.at<double>(1,1);
-	cx = Kcpu.at<double>(0,2);
-	cy = Kcpu.at<double>(1,2);
+	float fx, fy, cx, cy;
+	fx = Kcpu.at<float>(0,0);
+	fy = Kcpu.at<float>(1,1);
+	cx = Kcpu.at<float>(0,2);
+	cy = Kcpu.at<float>(1,2);
 
-	cv::Mat KInvCpu = (Mat_<double>(3,3) <<
+	cv::Mat KInvCpu = (Mat_<float>(3,3) <<
 					   1/fx,	0.0, -cx/fx,
 					    0.0,   1/fy, -cy/fy,
 					    0.0,    0.0,	1.0);
@@ -95,17 +95,17 @@ void CostVolume::updateCost(const Mat& image, const cv::Mat& Rmw, const cv::Mat&
 
 	currentImage.upload(image);
 
-	Tmw = (Mat_<double>(4,4) <<
-		   Rmw.at<double>(0,0), Rmw.at<double>(0,1), Rmw.at<double>(0,2), tmw.at<double>(0),
-		   Rmw.at<double>(1,0), Rmw.at<double>(1,1), Rmw.at<double>(1,2), tmw.at<double>(1),
-		   Rmw.at<double>(2,0), Rmw.at<double>(2,1), Rmw.at<double>(2,2), tmw.at<double>(2),
+	Tmw = (Mat_<float>(4,4) <<
+		   Rmw.at<float>(0,0), Rmw.at<float>(0,1), Rmw.at<float>(0,2), tmw.at<float>(0),
+		   Rmw.at<float>(1,0), Rmw.at<float>(1,1), Rmw.at<float>(1,2), tmw.at<float>(1),
+		   Rmw.at<float>(2,0), Rmw.at<float>(2,1), Rmw.at<float>(2,2), tmw.at<float>(2),
 		   0,                   0,                   0,                1);
 	
 	Tmr = Tmw*Twr;
 	Tmr_gpu.upload(Tmr);
 
 	// TODO check this carefully, why isn't dataContainer.step == rows*cols?
-	updateCostVolumeCaller( (double*)K.data, (double*)Kinv.data, (double*)Tmr_gpu.data,
+	updateCostVolumeCaller( (float*)K.data, (float*)Kinv.data, (float*)Tmr_gpu.data,
 							rows, cols, currentImage.step,
 							near, far, layers, rows*cols, 
 							cdata, count,

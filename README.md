@@ -21,7 +21,7 @@ Currently only the dense mapper is implemented.
     make
 
 ### Run openDTAM
-TODO
+/path/to/openDTAM/build$ optirun -b none ./test-mapping-orb-slam ../data/openDTAM-settings.yaml
 
 ### Trouble Shooting
 Tested with opencv-2.4.9. Other versions might not work. 

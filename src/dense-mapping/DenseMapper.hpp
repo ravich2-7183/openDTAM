@@ -12,6 +12,10 @@
 #include <tf/transform_datatypes.h>
 #include <tf/transform_listener.h>
 #include <sensor_msgs/image_encodings.h>
+#include <std_msgs/Bool.h>
+
+#include <dynamic_reconfigure/server.h>
+#include <openDTAM/openDTAMConfig.h>
 
 #include <boost/thread/thread.hpp>
 #include <pcl/common/common_headers.h>
@@ -28,7 +32,7 @@ public:
 	float near_;
 	float far_;
 	CostVolume costvolume_;
-	int imagesPerCostVolume_; // TODO remove later after implementing auto mode
+	int images_per_costvolume_; // TODO remove later after implementing auto mode
 	int im_count_;
 
 	// Regulariser properties
@@ -38,16 +42,16 @@ public:
 
 	// camera properties
 	const int rows_, cols_;
-	double fps_;
+	float fps_;
 	Mat camera_matrix_;
 
 	// Optimization parameters
 	GpuMat a_, d_;
-	const float theta_start_;
-	const float theta_min_;
-	const float theta_step_;
-	const float epsilon_;
-	const float lambda_;
+	float theta_start_;
+	float theta_min_;
+	float theta_step_;
+	float epsilon_;
+	float lambda_;
 
 	// ros
 	ros::NodeHandle nh_;
@@ -55,6 +59,8 @@ public:
 	tf::TransformListener tf_listener_;
 	tf::StampedTransform transform_;
 	cv_bridge::CvImagePtr input_bridge_;
+	std_msgs::Bool img_processed_msg_;
+	ros::Publisher img_processed_pub_;
 
 	// point cloud viewer
 	bool updating_pointcloud_;
@@ -71,5 +77,7 @@ public:
 	void getDepth(Mat& depth_map);
 	void createPointCloud();
 	void showPointCloud();
+	void dynamicReconfigCallback(openDTAM::openDTAMConfig &config, uint32_t level);
+	void dynamicReconfigThread();
 	void optimize();
 }; // class DepthEstimator

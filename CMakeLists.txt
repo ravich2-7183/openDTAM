@@ -10,6 +10,11 @@ rosbuild_init()
 set(EXECUTABLE_OUTPUT_PATH ${CMAKE_SOURCE_DIR}/build)
 set(LIBRARY_OUTPUT_PATH ${CMAKE_SOURCE_DIR}/build)
 
+# add dynamic reconfigure api
+rosbuild_find_ros_package(dynamic_reconfigure)
+include(${dynamic_reconfigure_PACKAGE_PATH}/cmake/cfgbuild.cmake)
+gencfg()
+
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -O0 -g -ggdb ")
 
@@ -51,5 +56,5 @@ set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS}; -gencode arch=compute_30,code=compute_30
 cuda_add_library(openDTAM_LIB SHARED ${DTAM_SOURCES})
 target_link_libraries(openDTAM_LIB ${OpenCV_LIBS} ${Boost_LIBRARIES})
 
-rosbuild_add_executable(test-mapping-orb-slam src/dense-mapping/DenseMapper.cpp src/dense-mapping/dense-mapping-orbslam-tracking.cpp)
-target_link_libraries(test-mapping-orb-slam ${OpenCV_LIBS} openDTAM_LIB ${Boost_LIBRARIES} ${PCL_LIBRARIES})
+rosbuild_add_executable(dense-mapping-orb-slam-tracking src/dense-mapping/DenseMapper.cpp src/dense-mapping/dense-mapping-orbslam-tracking.cpp)
+target_link_libraries(dense-mapping-orb-slam-tracking ${OpenCV_LIBS} openDTAM_LIB ${Boost_LIBRARIES} ${PCL_LIBRARIES})

@@ -53,10 +53,10 @@ static inline __host__ __device__ float4 operator*(float b, float4 a)
               f12*((x2f-xf)*(yf-y1f)) +                 \
               f22*((xf-x1f)*(yf-y1f)));                 \
 
-// TODO: replace the doubles with floats and check for any performance increase vs. lost accuracy 
-static __global__ void updateCostVolume(double* K, double* Kinv, double* Tmr,
+// TODO: replace the floats with floats and check for any performance increase vs. lost accuracy 
+static __global__ void updateCostVolume(float* K, float* Kinv, float* Tmr,
 										int rows, int cols,
-										double near, double far, int layers, int layerStep,
+										float near, float far, int layers, int layerStep,
                                         float* Cost, float count,
 										float* Cmin, float* Cmax, float* CminIdx,
 										float4* referenceImage, float4* currentImage, bool useTextureMemory)
@@ -65,31 +65,31 @@ static __global__ void updateCostVolume(double* K, double* Kinv, double* Tmr,
 	const int y = blockIdx.y * blockDim.y + threadIdx.y;
 	const int i = x + y*cols;
 
-	// TODO test the use of double vs float: precision vs. speed. My guess is that float should be enough. 
-	const double ur = x;
-	const double vr = y;
+	// TODO test the use of float vs float: precision vs. speed. My guess is that float should be enough. 
+	const float ur = x;
+	const float vr = y;
 
-	const double depthStep = (near - far)/(layers-1);
+	const float depthStep = (near - far)/(layers-1);
 
 	float4 Ir = referenceImage[i];
 
     int	  minl = layers-1; // TODO set to layers?
     float Cost_min = 1e+30, Cost_max = 0.0;
     for(int l=layers-1; l >= 0; l--) { // TODO march from front to back, i.e., l = layers -> 0 and check results. 
-        double d = far + double(l)*depthStep;
+        float d = far + float(l)*depthStep;
 		// 0 1 2
 		// 3 4 5
 		// 6 7 8
-		double zr = 1.0/d; // divide by 0 is evaluated as Inf, as per IEEE-754
-		double xr = (Kinv[0]*ur + Kinv[2])*zr;
-		double yr = (Kinv[4]*vr + Kinv[5])*zr;
-		// 0  1	 2	3
-		// 4  5	 6	7
-		// 8  9	 10 11
+		float zr = 1.0/d; // divide by 0 is evaluated as Inf, as per IEEE-754
+		float xr = (Kinv[0]*ur + Kinv[2])*zr;
+		float yr = (Kinv[4]*vr + Kinv[5])*zr;
+		//  0  1  2  3
+		//  4  5  6  7
+		//  8  9 10 11
 		// 12 13 14 15
-		double xm = Tmr[0]*xr + Tmr[1]*yr + Tmr[2]*zr  + Tmr[3];
-		double ym = Tmr[4]*xr + Tmr[5]*yr + Tmr[6]*zr  + Tmr[7];
-		double zm = Tmr[8]*xr + Tmr[9]*yr + Tmr[10]*zr + Tmr[11];
+		float xm = Tmr[0]*xr + Tmr[1]*yr + Tmr[2]*zr  + Tmr[3];
+		float ym = Tmr[4]*xr + Tmr[5]*yr + Tmr[6]*zr  + Tmr[7];
+		float zm = Tmr[8]*xr + Tmr[9]*yr + Tmr[10]*zr + Tmr[11];
 		// 0 1 2
 		// 3 4 5
 		// 6 7 8
@@ -126,11 +126,22 @@ static __global__ void updateCostVolume(double* K, double* Kinv, double* Tmr,
     Cmin[i]	   = Cost_min;
     CminIdx[i] = far + float(minl)*depthStep; // scaling is done when used in DepthEstimator::optimize
     Cmax[i]	   = Cost_max;
+
+	// sublayer sampling as the minimum of the parabola with the 2 points around (minz, minv)
+	if(minl == 0 || minl == layers-1) // first or last was best
+		return;
+
+    float A = far + float(minl-1)*depthStep;
+    float B = CminIdx[i];
+    float C = far + float(minl+1)*depthStep;
+	float delta = ((A+C)==2*B)? 0.0f : ((A-C)*depthStep)/(2*(A-2*B+C));
+	delta = (fabsf(delta) > depthStep)? 0.0f : delta;
+	CminIdx[i] += delta;
 }
 
-void updateCostVolumeCaller(double* K, double* Kinv, double* Tmr,
+void updateCostVolumeCaller(float* K, float* Kinv, float* Tmr,
 							int rows, int cols, int imageStep,
-							double near, double far, int layers, int layerStep,
+							float near, float far, int layers, int layerStep,
 							float* Cdata, float count,
 							float* Cmin, float* Cmax, float* CminIdx,
 							float4* referenceImage, float4* currentImage, bool useTextureMemory)

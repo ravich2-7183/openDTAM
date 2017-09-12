@@ -1,0 +1,44 @@
+%YAML:1.0
+
+# Camera Parameters. Adjust them!
+
+camera.rows: 480
+camera.cols: 640
+
+# Camera calibration parameters (OpenCV) 
+camera.fx: 481.20
+camera.fy: 480.00
+camera.cx: 319.5 # 800.7
+camera.cy: 239.5 # 719.5
+
+# Camera distortion paremeters (OpenCV) --
+camera.k1: 0.0
+camera.k2: 0.0
+camera.p1: 0.0
+camera.p2: 0.0
+
+# Camera frames per second 
+camera.fps: 20.0
+
+# Color order of the images (0: BGR, 1: RGB. It is ignored if images are grayscale)
+camera.RGB: 0
+
+#--------------------------------------------------------------------------------------------
+# Cost Volume properties
+costvolume.images_per_costvolume : 10
+costvolume.layers                : 64
+costvolume.near_inverse_distance : 10 # change to .002 or slightly larger
+costvolume.far_inverse_distance  : 0.3 # 0.0 
+
+# Regulariser parameters
+# G parameters
+regulariser.alpha_G : 3.5 # 0.0
+regulariser.beta_G  : 0.5 # 1.0
+
+# Optimizer parameters
+optimizer.theta_start  :  0.2
+optimizer.theta_min    :  1.0e-4
+optimizer.theta_step   :  0.97
+optimizer.epsilon      :  0.05 # 1e-4 # huber epsilon
+optimizer.lambda       :  0.5 # regularizing strength # TODO needs to be dynamically altered
+optimizer.denoiserItrs : 10

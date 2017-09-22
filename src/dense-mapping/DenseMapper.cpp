@@ -66,7 +66,7 @@ void DenseMapper::processImage(const sensor_msgs::ImageConstPtr& image_msg)
 		input_bridge_ = cv_bridge::toCvCopy(image_msg); // TODO: use cv_bridge::toCvShare instead?
 		image_ = input_bridge_->image; // TODO: is this copy required?
 		image_.convertTo(image_, CV_32FC3, 1.0/255.0); // float image [0-1] // TODO: make this more generic
-		cvtColor(image_, image_, CV_RGB2RGBA); // TODO check if image is in BGR format, also why RGBA (2 x 64bits alignment?)
+		cvtColor(image_, image_, CV_RGB2RGBA); // TODO check if image is in BGR format. RGBA for better memory alignment. 
 
 		// TODO debug lines
 		cout << "Received image with time stamp: " << image_msg->header.stamp << endl;
@@ -143,7 +143,7 @@ void DenseMapper::processImage(const sensor_msgs::ImageConstPtr& image_msg)
 void DenseMapper::resetCostVolume(const cv::Mat& image, const cv::Mat& Rrw, const cv::Mat& trw)
 {
 	costvolume_.reset(image, camera_matrix_, Rrw, trw);
-	regulariser_.initialize(costvolume_.referenceImageGray);
+    regulariser_.initialize(costvolume_.reference_image_gray_);
 }
 
 void DenseMapper::updateCostVolume(const Mat& image, const cv::Mat& Rmw, const cv::Mat& tmw)
@@ -161,14 +161,14 @@ void DenseMapper::createPointCloud()
 	boost::mutex::scoped_lock update_lock(update_pc_mutex_);
 	updating_pointcloud_ = true;
 
-	Mat depth, Kinv, referenceImage;
+    Mat depth, Kinv, reference_image;
 
 	// depth.create(rows_, cols_, CV_32FC1);
 	d_.download(depth);
 	// depth = depth*(1/costvolume_.near);
 
 	costvolume_.Kinv.download(Kinv);
-	costvolume_.referenceImage.download(referenceImage);
+    costvolume_.reference_image_color_.download(reference_image);
 
 	// create point cloud from depth map
 	point_cloud_ptr_->points.clear();
@@ -179,9 +179,9 @@ void DenseMapper::createPointCloud()
 			point.z = 1.0/depth.at<float>(v,u);
 			point.x = (Kinv.at<float>(0,0)*u + Kinv.at<float>(0,2)) * point.z;
 			point.y = (Kinv.at<float>(1,1)*v + Kinv.at<float>(1,2)) * point.z;
-			point.b = static_cast<uint8_t>(referenceImage.at<cv::Vec4f>(v,u)[0] * 255);
-			point.g = static_cast<uint8_t>(referenceImage.at<cv::Vec4f>(v,u)[1] * 255);
-			point.r = static_cast<uint8_t>(referenceImage.at<cv::Vec4f>(v,u)[2] * 255);
+            point.b = static_cast<uint8_t>(reference_image.at<cv::Vec4f>(v,u)[0] * 255);
+            point.g = static_cast<uint8_t>(reference_image.at<cv::Vec4f>(v,u)[1] * 255);
+            point.r = static_cast<uint8_t>(reference_image.at<cv::Vec4f>(v,u)[2] * 255);
 
 			point_cloud_ptr_->points.push_back(point);
 		}

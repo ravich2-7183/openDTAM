@@ -30,7 +30,7 @@ CostVolume::CostVolume(float _rows, float _cols, float _layers, float _near, flo
 	layers(_layers), near(_near), far(_far)
 {
 	CV_Assert(layers >= 8);
-	
+
 	depthStep = (near - far) / (layers - 1);
 
 	cv::gpu::createContinuous(rows, cols, CV_32FC1, Cmin);
@@ -38,18 +38,19 @@ CostVolume::CostVolume(float _rows, float _cols, float _layers, float _near, flo
 	cv::gpu::createContinuous(rows, cols, CV_32FC1, CminIdx);
 
 	// TODO reorg as (rows*cols, layers) instead of current (layers, rows*cols)
-    cv::gpu::createContinuous(layers, rows*cols, CV_32FC1, cost_data);
+	cv::gpu::createContinuous(layers, rows*cols, CV_32FC1, cost_data);
 
-    cdata = (float*) cost_data.data;
+	cdata = (float*) cost_data.data;
 
 	cv::gpu::createContinuous(3, 3, CV_32FC1, K);
 	cv::gpu::createContinuous(3, 3, CV_32FC1, Kinv);
-	
+
 	cv::gpu::createContinuous(4, 4, CV_32FC1, Tmr_gpu);
-	
-	cv::gpu::createContinuous(rows, cols, CV_32FC4, referenceImage);
-	cv::gpu::createContinuous(rows, cols, CV_32FC4, currentImage);
-	cv::gpu::createContinuous(rows, cols, CV_32FC1, referenceImageGray);
+
+	cv::gpu::createContinuous(rows, cols, CV_32FC4, reference_image_color_);
+	cv::gpu::createContinuous(rows, cols, CV_32FC1, reference_image_gray_);
+	cv::gpu::createContinuous(rows, cols, CV_32FC4, current_image_color_);
+	cv::gpu::createContinuous(rows, cols, CV_32FC1, current_image_gray_);
 }
 
 // TODO: camera doesn't change, so set it only once at startup, instead of at each reset
@@ -64,7 +65,7 @@ void CostVolume::reset(const cv::Mat& image, const cv::Mat& Kcpu, const cv::Mat&
 		   Rwr.at<float>(1,0), Rwr.at<float>(1,1), Rwr.at<float>(1,2), twr.at<float>(1),
 		   Rwr.at<float>(2,0), Rwr.at<float>(2,1), Rwr.at<float>(2,2), twr.at<float>(2),
 		   0,					0,					 0,				      1);
-	
+
 	K.upload(Kcpu);
 
 	float fx, fy, cx, cy;
@@ -77,47 +78,48 @@ void CostVolume::reset(const cv::Mat& image, const cv::Mat& Kcpu, const cv::Mat&
 					   1/fx,	0.0, -cx/fx,
 					    0.0,   1/fy, -cy/fy,
 					    0.0,    0.0,	1.0);
-	
+
 	Kinv.upload(KInvCpu);
 
-	referenceImage.upload(image);
-	cv::gpu::cvtColor(referenceImage, referenceImageGray, CV_RGBA2GRAY); // TODO ensure input image is always RGBA
+	reference_image_color_.upload(image);
+	cv::gpu::cvtColor(reference_image_color_, reference_image_gray_, CV_RGBA2GRAY); // conversion on gpu presumably faster
 
-    cost_data = 0.0;
-	
-	count = 0.0f;
+	cost_data = 0.0f;
+
+	count_ = 0.0f;
 }
 
 // TODO to increase throughput, use async functions to copy from host to device
 void CostVolume::updateCost(const Mat& image, const cv::Mat& Rmw, const cv::Mat& tmw)
 {
-	count++;
+	count_++;
 
-	currentImage.upload(image);
+	current_image_color_.upload(image);
+	cv::gpu::cvtColor(current_image_color_, current_image_gray_, CV_RGBA2GRAY); // conversion on gpu presumably faster
 
 	Tmw = (Mat_<float>(4,4) <<
 		   Rmw.at<float>(0,0), Rmw.at<float>(0,1), Rmw.at<float>(0,2), tmw.at<float>(0),
 		   Rmw.at<float>(1,0), Rmw.at<float>(1,1), Rmw.at<float>(1,2), tmw.at<float>(1),
 		   Rmw.at<float>(2,0), Rmw.at<float>(2,1), Rmw.at<float>(2,2), tmw.at<float>(2),
 		   0,                   0,                   0,                1);
-	
+
 	Tmr = Tmw*Twr;
 	Tmr_gpu.upload(Tmr);
 
 	// TODO check this carefully, why isn't dataContainer.step == rows*cols?
 	updateCostVolumeCaller( (float*)K.data, (float*)Kinv.data, (float*)Tmr_gpu.data,
-							rows, cols, currentImage.step,
-							near, far, layers, rows*cols, 
-							cdata, count,
+							rows, cols, current_image_gray_.step,
+							near, far, layers, rows*cols,
+							cdata, count_,
 							(float*)(Cmin.data), (float*)(Cmax.data), (float*)(CminIdx.data),
-							(float4*)(referenceImage.data), (float4*)(currentImage.data), true);
+							(float*)(reference_image_gray_.data), (float*)(current_image_gray_.data));
 }
 
 void CostVolume::minimize_a(const cv::gpu::GpuMat& d, cv::gpu::GpuMat& a, float theta, float lambda)
 {
 	minimizeACaller(cdata, rows, cols, layers,
 					(float*)a.data, (float*)d.data,
-					(float*)CminIdx.data, 
+					(float*)CminIdx.data,
 					far, depthStep,
 					theta, lambda);
 }

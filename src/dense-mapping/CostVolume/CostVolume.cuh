@@ -8,7 +8,7 @@ void updateCostVolumeCaller(float* K, float* Kinv, float* Tmr,
                             float near, float far, int layers, int layerStep,
                             float* Cdata, float count, 
 							float* Cmin, float* Cmax, float* CminIdx,
-                            float4* referenceImage, float4* currentImage, bool useTextureMemory);
+                            float* reference_image_gray, float* current_image_gray);
 
 void minimizeACaller(float*cdata, int rows, int cols, int layers, 
                      float*a, float*d,

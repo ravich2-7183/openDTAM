@@ -20,9 +20,10 @@ public:
 	cv::Mat Tmw, Twr, Tmr;
 	cv::gpu::GpuMat Tmr_gpu;
 
-	cv::gpu::GpuMat referenceImage;
-	cv::gpu::GpuMat referenceImageGray;
-	cv::gpu::GpuMat currentImage;
+    cv::gpu::GpuMat reference_image_color_;
+    cv::gpu::GpuMat reference_image_gray_;
+    cv::gpu::GpuMat current_image_color_;
+    cv::gpu::GpuMat current_image_gray_;
 	cv::gpu::GpuMat Cmin; // TODO unnecessary variable
 	cv::gpu::GpuMat Cmax; // TODO unnecessary variable
 	cv::gpu::GpuMat CminIdx; // TODO a better name: d_Cmin?
@@ -30,7 +31,7 @@ public:
     cv::gpu::GpuMat cost_data; // TODO rename this to Cdata for consistency
 	float *cdata; // TODO unnecessary variable
 
-	float count;
+    float count_;
     
 	CostVolume() {};
 	CostVolume(float _rows, float _cols, float _layers, float _near, float _far);

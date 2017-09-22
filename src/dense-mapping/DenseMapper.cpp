@@ -202,6 +202,11 @@ void DenseMapper::showPointCloud()
 	viewer->setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 3, "projected_depth_image");
 	viewer->addCoordinateSystem(1.0);
 	viewer->initCameraParameters();
+	viewer->setCameraPosition(-0.0067756, -0.0685564, -0.462478,
+							           0,          0,         1,
+							  -0.0105255, -0.9988450,  0.0468715);
+	viewer->setCameraClipDistances(0.0186334, 18.6334);
+	viewer->setCameraFieldOfView(0.8575);
 
 	while(!viewer->wasStopped()) {
 		viewer->spinOnce (100);

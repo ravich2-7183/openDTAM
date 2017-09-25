@@ -47,6 +47,7 @@ DenseMapper::DenseMapper(const cv::FileStorage& settings_file) :
                                             0.0,   fy,  cy,
                                             0.0,  0.0, 1.0);
 
+	// allocate space for a_ and d_
 	cv::gpu::createContinuous(rows_, cols_, CV_32FC1, a_);
 	cv::gpu::createContinuous(rows_, cols_, CV_32FC1, d_);
 
@@ -161,12 +162,9 @@ void DenseMapper::createPointCloud()
 	boost::mutex::scoped_lock update_lock(update_pc_mutex_);
 	updating_pointcloud_ = true;
 
-    Mat depth, Kinv, reference_image;
+    Mat inv_depth, Kinv, reference_image;
 
-	// depth.create(rows_, cols_, CV_32FC1);
-	d_.download(depth);
-	// depth = depth*(1/costvolume_.near);
-
+    d_.download(inv_depth);
 	costvolume_.Kinv.download(Kinv);
     costvolume_.reference_image_color_.download(reference_image);
 
@@ -176,7 +174,7 @@ void DenseMapper::createPointCloud()
 		for(int u=0; u<cols_; u++) {
 			pcl::PointXYZRGB point;
 
-			point.z = 1.0/depth.at<float>(v,u);
+            point.z = 1.0/inv_depth.at<float>(v,u);
 			point.x = (Kinv.at<float>(0,0)*u + Kinv.at<float>(0,2)) * point.z;
 			point.y = (Kinv.at<float>(1,1)*v + Kinv.at<float>(1,2)) * point.z;
             point.b = static_cast<uint8_t>(reference_image.at<cv::Vec4f>(v,u)[0] * 255);
@@ -243,19 +241,18 @@ void DenseMapper::dynamicReconfigCallback(openDTAM::openDTAMConfig &config, uint
 void DenseMapper::optimize()
 {
 	// Initialize a, d
-	costvolume_.CminIdx.copyTo(a_);
 	costvolume_.CminIdx.copyTo(d_);
+	costvolume_.CminIdx.copyTo(a_);
 
 	// TODO debug lines
 	cout << "Optimization start: --------" << endl;
-	Mat aImg, dImg; //
-	aImg.create(rows_, cols_, CV_32FC1);	dImg.create(rows_, cols_, CV_32FC1);
-	namedWindow("a", WINDOW_AUTOSIZE);
-	namedWindow("d", WINDOW_AUTOSIZE);
-
-	a_.download(aImg);	d_.download(dImg);
-	imshow("a", aImg*(1/costvolume_.near));		waitKey(10); // scale float image to lie in [0-1]
-	imshow("d", dImg*(1/costvolume_.near));		waitKey(10);
+	namedWindow("a", WINDOW_AUTOSIZE);      namedWindow("d", WINDOW_AUTOSIZE);
+	Mat aImg, dImg;
+	aImg.create(rows_, cols_, CV_32FC1);    dImg.create(rows_, cols_, CV_32FC1);
+	// TODO: scaling will need to be changed if per pixel near and far values are used
+	a_.download(aImg);	                    d_.download(dImg);
+	aImg *= (1.0f/costvolume_.near);        dImg *= (1.0f/costvolume_.near); // float image scaled to lie in [0-1]
+	imshow("a", aImg); waitKey(10);         imshow("d", dImg); waitKey(10);
 
 	createPointCloud();
 
@@ -275,16 +272,11 @@ void DenseMapper::optimize()
 		n++;
 	}
 
-	// TODO debug lines
-	d_.download(dImg);
-	imshow("d", dImg*(1/costvolume_.near));
-	waitKey(10);
+	// // TODO debug lines
+	// a_.download(aImg);	                    d_.download(dImg);
+	// aImg *= (1.0f/costvolume_.near);        dImg *= (1.0f/costvolume_.near); // float image scaled to lie in [0-1]
+	// imshow("a", aImg); waitKey(10);         imshow("d", dImg); waitKey(10);
 
-	// TODO debug lines
-	a_.download(aImg);
-	imshow("a", aImg*(1/costvolume_.near));
-	waitKey(10);
-
-	// TODO debug lines
-	createPointCloud();
+	// // TODO debug lines
+	// createPointCloud();
 }

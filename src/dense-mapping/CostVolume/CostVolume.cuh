@@ -10,9 +10,9 @@ void updateCostVolumeCaller(float* K, float* Kinv, float* Tmr,
 							float* Cmin, float* Cmax, float* CminIdx,
                             float* reference_image_gray, float* current_image_gray);
 
-void minimizeACaller(float*cdata, int rows, int cols, int layers, 
+void minimizeACaller(float*cdata, int rows, int cols,
                      float*a, float*d,
-					 float*d_Cmin,
-                     float far, float depthStep,
+					 float*d_Cmin, float*C_min, float*C_max,
+					 float far, float near, int layers,
                      float theta, float lambda);
 #endif

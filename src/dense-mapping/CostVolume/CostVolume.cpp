@@ -30,6 +30,7 @@ CostVolume::CostVolume(float _rows, float _cols, float _layers, float _near, flo
 	layers(_layers), near(_near), far(_far)
 {
 	CV_Assert(layers >= 8);
+	CV_Assert(near > far);
 
 	depthStep = (near - far) / (layers - 1);
 
@@ -117,10 +118,10 @@ void CostVolume::updateCost(const Mat& image, const cv::Mat& Rmw, const cv::Mat&
 
 void CostVolume::minimize_a(const cv::gpu::GpuMat& d, cv::gpu::GpuMat& a, float theta, float lambda)
 {
-	minimizeACaller(cdata, rows, cols, layers,
+	minimizeACaller(cdata, rows, cols,
 					(float*)a.data, (float*)d.data,
-					(float*)CminIdx.data,
-					far, depthStep,
+					(float*)CminIdx.data, (float*)Cmin.data, (float*)Cmax.data,
+					far, near, layers,
 					theta, lambda);
 }
 

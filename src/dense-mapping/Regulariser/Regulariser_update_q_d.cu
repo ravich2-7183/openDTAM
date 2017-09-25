@@ -25,7 +25,6 @@ static __global__ void update_q(float *g, float *a,  // const input
 	// q reprojected **element-wise** as per Newcombe thesis pg. 76, 79 (sec. 3.5)
 	// if the whole vector q had to be reprojected, a tree-reduction sum would have been required
 	float maxq = fmaxf(1.0f, sqrtf(qx*qx + qy*qy));
-	// float maxq = fmaxf(1.0f, sqrtf(qx*qx + qy*qy)/theta); // TODO check the effect of division by theta
 	q[i]    = qx / maxq;
 	q[i+wh] = qy / maxq;
 }

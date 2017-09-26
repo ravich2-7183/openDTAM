@@ -22,9 +22,9 @@ static __global__ void updateCostVolume(float* K, float* Kinv, float* Tmr,
 
 	float Ir = reference_image[i];
 
-	int	  minl = layers-1; // TODO set to layers?
+	int	  minl = layers-1;
 	float Cost_min = 1e+30, Cost_max = 0.0;
-	for(int l=layers-1; l >= 0; l--) { // TODO march from front to back, i.e., l = layers -> 0 and check results. 
+	for(int l=layers-1; l >= 0; l--) {
 		float d = far + float(l)*depthStep;
 		// 0 1 2
 		// 3 4 5
@@ -68,9 +68,9 @@ static __global__ void updateCostVolume(float* K, float* Kinv, float* Tmr,
 	if(minl == 0 || minl == layers-1) // first or last was best
 		return;
 
-	float A = far + float(minl-1)*depthStep;
-	float B = CminIdx[i];
-	float C = far + float(minl+1)*depthStep;
+	float A = Cost[i+(minl-1)*layerStep];
+	float B = Cost_min;
+	float C = Cost[i+(minl+1)*layerStep];
 	float delta = ((A+C)==2*B)? 0.0f : ((A-C)*depthStep)/(2*(A-2*B+C));
 	delta = (fabsf(delta) > depthStep)? 0.0f : delta;
 	CminIdx[i] += delta;
@@ -90,10 +90,10 @@ void updateCostVolumeCaller(float* K, float* Kinv, float* Tmr,
 	// Set texture reference parameters
 	cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc(32, 0, 0, 0, cudaChannelFormatKindFloat);
 
-	current_imageTexRef.normalized	  = false;
-	current_imageTexRef.addressMode[0] = cudaAddressModeClamp; // out of border references return first or last element
+	current_imageTexRef.normalized     = false;
+	current_imageTexRef.addressMode[0] = cudaAddressModeClamp;	// out of border references return first or last element
 	current_imageTexRef.addressMode[1] = cudaAddressModeClamp;
-	current_imageTexRef.filterMode	  = cudaFilterModeLinear;
+	current_imageTexRef.filterMode     = cudaFilterModeLinear;
 
 	// Bind current_image to the texture reference
 	size_t offset;

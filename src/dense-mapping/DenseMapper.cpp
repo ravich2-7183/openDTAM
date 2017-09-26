@@ -272,11 +272,11 @@ void DenseMapper::optimize()
 		n++;
 	}
 
-	// // TODO debug lines
-	// a_.download(aImg);	                    d_.download(dImg);
-	// aImg *= (1.0f/costvolume_.near);        dImg *= (1.0f/costvolume_.near); // float image scaled to lie in [0-1]
-	// imshow("a", aImg); waitKey(10);         imshow("d", dImg); waitKey(10);
+	// TODO debug lines
+	a_.download(aImg);	                    d_.download(dImg);
+	aImg *= (1.0f/costvolume_.near);        dImg *= (1.0f/costvolume_.near); // float image scaled to lie in [0-1]
+	imshow("a", aImg); waitKey(10);         imshow("d", dImg); waitKey(10);
 
-	// // TODO debug lines
-	// createPointCloud();
+	// TODO debug lines
+	createPointCloud();
 }

@@ -10,4 +10,6 @@ lib/
 *.creator*
 *.files
 *.includes
+docs/
+src/openDTAM/
 

@@ -12,7 +12,12 @@ def callback(data):
     global image_pub
     
     while True:
-        topic, msg, time = bag_generator.next()
+        try:
+            topic, msg, time = bag_generator.next()
+        except StopIteration:
+            print "Reached end of bag. Looping to start..."
+            bag_generator = bag.read_messages()
+            topic, msg, time = bag_generator.next()
         if topic == "/camera/image_raw":
             break
     

@@ -4,7 +4,7 @@ using namespace cv;
 using namespace cv::gpu;
 using namespace std;
 
-DenseMapper::DenseMapper(const cv::FileStorage& settings_file) :
+DenseMapper::DenseMapper(const cv::FileStorage& settings_file, bool pause_execution) :
 	nh_(),
 	rows_(settings_file["camera.rows"]),
 	cols_(settings_file["camera.cols"]),
@@ -18,24 +18,12 @@ DenseMapper::DenseMapper(const cv::FileStorage& settings_file) :
 	theta_start_(settings_file["optimizer.theta_start"]),
 	theta_min_(settings_file["optimizer.theta_min"]),
 	theta_step_(settings_file["optimizer.theta_step"]),
-	epsilon_(settings_file["optimizer.epsilon"]),
+    huber_epsilon_(settings_file["optimizer.epsilon"]),
 	lambda_(settings_file["optimizer.lambda"]),
+	n_iters_(settings_file["optimizer.n_iters"]),
+	pause_execution_(pause_execution),
 	point_cloud_ptr_(new pcl::PointCloud<pcl::PointXYZRGB>())
 {
-	// TODO instead of relying on the default copy ctor, should i use a pointer and the new operator instead?
-	CostVolume costvolume_tmp(rows_, cols_, layers_, near_, far_);
-	costvolume_ = costvolume_tmp;
-	im_count_ = 0;
-
-	cout << "In DenseMapper ctor" << endl;
-	cout << "rows = " << costvolume_.rows << endl;
-	cout << "cols = " << costvolume_.cols << endl;
-	cout << "layers = " << costvolume_.layers << endl;
-	cout << "imagesPerCostVolume = " << images_per_costvolume_ << endl;
-
-	Regulariser regulariser_tmp(rows_, cols_, alpha_G_, beta_G_);
-	regulariser_ = regulariser_tmp;
-
 	float fx, fy, cx, cy;
 	fx = settings_file["camera.fx"];
 	fy = settings_file["camera.fy"];
@@ -47,16 +35,32 @@ DenseMapper::DenseMapper(const cv::FileStorage& settings_file) :
                                             0.0,   fy,  cy,
                                             0.0,  0.0, 1.0);
 
+	// TODO instead of relying on the default copy ctor, should i use a pointer and the new operator instead?
+	CostVolume costvolume_tmp(rows_, cols_, layers_, near_, far_, camera_matrix_);
+	costvolume_ = costvolume_tmp;
+
+	cout << "In DenseMapper ctor" << endl;
+	cout << "rows = " << costvolume_.rows << endl;
+	cout << "cols = " << costvolume_.cols << endl;
+	cout << "layers = " << costvolume_.layers << endl;
+	cout << "imagesPerCostVolume = " << images_per_costvolume_ << endl;
+
+	Regulariser regulariser_tmp(rows_, cols_, alpha_G_, beta_G_);
+	regulariser_ = regulariser_tmp;
+
 	// allocate space for a_ and d_
 	cv::gpu::createContinuous(rows_, cols_, CV_32FC1, a_);
 	cv::gpu::createContinuous(rows_, cols_, CV_32FC1, d_);
 
 	img_processed_pub_ = nh_.advertise<std_msgs::Bool>("img_processed", 1000);
+
+	depth_pub_ = nh_.advertise<sensor_msgs::Image>("/camera/depth/image_raw", 10);
+	rgb_pub_   = nh_.advertise<sensor_msgs::Image>("/camera/rgb/image_color", 10);
 }
 
 void DenseMapper::receiveImageStream()
 {
-	sub_ = nh_.subscribe("/camera/image_raw", 5, &DenseMapper::processImage, this);
+	sub_ = nh_.subscribe("/camera/image_raw", 1, &DenseMapper::processImage, this);
 	ros::spin();
 }
 
@@ -97,8 +101,6 @@ void DenseMapper::processImage(const sensor_msgs::ImageConstPtr& image_msg)
 
 		// TODO debug lines
 		cout << "Received delayed transform with time stamp: " << transform_.stamp_ << endl;
-		// img_processed_pub_.publish(img_processed_msg_);
-		// return;
 	}
 
 	tf::Matrix3x3 R = transform_.getBasis();
@@ -115,41 +117,39 @@ void DenseMapper::processImage(const sensor_msgs::ImageConstPtr& image_msg)
 				   t.z());
 
 	// // TODO debug
-	// cout << "Rcw = " << Rcw << endl;
-	// cout << "tcw = " << tcw << endl;
-
 	// tcw = (-Rcw.t())*tcw;
 	// Rcw =  Rcw.t();
-	if(im_count_ == 0) {
-		this->resetCostVolume(image_, Rcw, tcw);
+
+	if(costvolume_.count_ == 0) {
+		cout << "resetting reference image" << endl;
+
+		costvolume_.setReferenceImage(image_, Rcw, tcw);
+		regulariser_.initialize(costvolume_.reference_image_gray_);
+		
+		costvolume_.count_++;
+
 		img_processed_pub_.publish(img_processed_msg_);
-		im_count_++;
 		return;
 	}
+	
+	cout << "count_ = " << costvolume_.count_ << endl;
+	cout << "updating cost volume" << endl;
 
-	if(im_count_ % images_per_costvolume_ == 0) { // TODO replace im_count_ with internal variable
-		this->optimize();
-		this->resetCostVolume(image_, Rcw, tcw);
-		cout << "Optimization done and CostVolume reset." << endl;
+	costvolume_.updateCost(image_, Rcw, tcw);
+
+	costvolume_.CminIdx.copyTo(d_);
+	costvolume_.CminIdx.copyTo(a_);
+
+	this->optimize(0); // 0: fully optimize
+
+	if(costvolume_.count_ == images_per_costvolume_) { 
+		costvolume_.reset();
+		if(!pause_execution_)
+			img_processed_pub_.publish(img_processed_msg_);
 	}
 	else {
-		this->updateCostVolume(image_, Rcw, tcw);
-		cout << "CostVolume updated." << endl;
 		img_processed_pub_.publish(img_processed_msg_);
 	}
-
-	im_count_++;
-}
-
-void DenseMapper::resetCostVolume(const cv::Mat& image, const cv::Mat& Rrw, const cv::Mat& trw)
-{
-	costvolume_.reset(image, camera_matrix_, Rrw, trw);
-    regulariser_.initialize(costvolume_.reference_image_gray_);
-}
-
-void DenseMapper::updateCostVolume(const Mat& image, const cv::Mat& Rmw, const cv::Mat& tmw)
-{
-	costvolume_.updateCost(image, Rmw, tmw);
 }
 
 void DenseMapper::getDepth(Mat& depth_map)
@@ -162,11 +162,11 @@ void DenseMapper::createPointCloud()
 	boost::mutex::scoped_lock update_lock(update_pc_mutex_);
 	updating_pointcloud_ = true;
 
-    Mat inv_depth, Kinv, reference_image;
+	Mat inv_depth, Kinv, reference_image;
 
-    d_.download(inv_depth);
+	d_.download(inv_depth);
 	costvolume_.Kinv.download(Kinv);
-    costvolume_.reference_image_color_.download(reference_image);
+	costvolume_.reference_image_color_.download(reference_image);
 
 	// create point cloud from depth map
 	point_cloud_ptr_->points.clear();
@@ -174,12 +174,12 @@ void DenseMapper::createPointCloud()
 		for(int u=0; u<cols_; u++) {
 			pcl::PointXYZRGB point;
 
-            point.z = 1.0/inv_depth.at<float>(v,u);
+			point.z = 1.0/inv_depth.at<float>(v,u);
 			point.x = (Kinv.at<float>(0,0)*u + Kinv.at<float>(0,2)) * point.z;
 			point.y = (Kinv.at<float>(1,1)*v + Kinv.at<float>(1,2)) * point.z;
-            point.b = static_cast<uint8_t>(reference_image.at<cv::Vec4f>(v,u)[0] * 255);
-            point.g = static_cast<uint8_t>(reference_image.at<cv::Vec4f>(v,u)[1] * 255);
-            point.r = static_cast<uint8_t>(reference_image.at<cv::Vec4f>(v,u)[2] * 255);
+			point.b = static_cast<uint8_t>(reference_image.at<cv::Vec4f>(v,u)[0] * 255);
+			point.g = static_cast<uint8_t>(reference_image.at<cv::Vec4f>(v,u)[1] * 255);
+			point.r = static_cast<uint8_t>(reference_image.at<cv::Vec4f>(v,u)[2] * 255);
 
 			point_cloud_ptr_->points.push_back(point);
 		}
@@ -234,49 +234,91 @@ void DenseMapper::dynamicReconfigCallback(openDTAM::openDTAMConfig &config, uint
 	theta_start_           =         config.theta_start;
 	theta_min_             =         config.theta_min;
 	theta_step_            =         config.theta_step;
-	epsilon_               =         config.huber_epsilon;
+    huber_epsilon_         =         config.huber_epsilon;
 	lambda_                =         config.lambda;
+	n_iters_               =         config.n_iters;
+
+	cout <<	"images_per_costvolume_ = " << images_per_costvolume_ << endl;
+	cout <<	"near_                  = " << config.near_distance   << endl;
+	cout <<	"far_                   = " << config.far_distance    << endl;
+	cout <<	"alpha_G_               = " << alpha_G_               << endl;
+	cout <<	"beta_G_                = " << beta_G_                << endl;
+	cout <<	"theta_start_           = " << theta_start_           << endl;
+	cout <<	"theta_min_             = " << theta_min_             << endl;
+	cout <<	"theta_step_            = " << theta_step_            << endl;
+    cout <<	"epsilon_               = " << huber_epsilon_         << endl;
+	cout <<	"lambda_                = " << lambda_                << endl;
+	cout <<	"n_iters_               = " << n_iters_               << endl;
 }
 
-void DenseMapper::optimize()
+void DenseMapper::publishDepthRGBImages()
 {
-	// Initialize a, d
-	costvolume_.CminIdx.copyTo(d_);
-	costvolume_.CminIdx.copyTo(a_);
+	// publish depth image
+	Mat inv_depth;
+	cv_bridge::CvImage cv_depth_image;
+	sensor_msgs::Image ros_depth_image;
 
-	// TODO debug lines
-	cout << "Optimization start: --------" << endl;
-	namedWindow("a", WINDOW_AUTOSIZE);      namedWindow("d", WINDOW_AUTOSIZE);
-	Mat aImg, dImg;
-	aImg.create(rows_, cols_, CV_32FC1);    dImg.create(rows_, cols_, CV_32FC1);
-	// TODO: scaling will need to be changed if per pixel near and far values are used
-	a_.download(aImg);	                    d_.download(dImg);
-	aImg *= (1.0f/costvolume_.near);        dImg *= (1.0f/costvolume_.near); // float image scaled to lie in [0-1]
-	imshow("a", aImg); waitKey(10);         imshow("d", dImg); waitKey(10);
+	d_.download(inv_depth);
 
-	createPointCloud();
+	Mat ONES = Mat::ones(rows_, cols_, CV_32FC1);
+	Mat depth_mm_F = ONES.mul(1/inv_depth);
+	Mat depth_mm_U;
+	depth_mm_F.convertTo(depth_mm_U, CV_16UC1, 1000); // TODO make sure that this does the right thing
+	cv_depth_image.image = depth_mm_U;
 
-	unsigned int n = 1;
-	float theta = theta_start_;
-	while(theta > theta_min_) {
-	// while(n < 100) {
-		// step 1. update_q_d must be called before minimize_a or else no progress will be made
-		regulariser_.update_q_d(a_, d_, epsilon_, theta);
+	cv_depth_image.toImageMsg(ros_depth_image);
+	ros_depth_image.header.stamp = ros::Time::now();
+	ros_depth_image.encoding = "16UC1";
+	depth_pub_.publish(ros_depth_image);
 
-		// step 2.
-		costvolume_.minimize_a(d_, a_, theta, lambda_); // point wise search for a[] that minimizes Eaux
+	// publish rgb image
+	Mat rgb_image;
+	cv_bridge::CvImage cv_rgb_image;
+	sensor_msgs::Image ros_rgb_image;
 
-		// step 3.
-		float beta = (theta > 1e-3)? 1e-3 : 1e-4;
-		theta *= (1-beta*n);
-		n++;
+	costvolume_.reference_image_color_.download(rgb_image);
+	rgb_image.convertTo(rgb_image, CV_8UC4, 255);
+	cvtColor(rgb_image, rgb_image, CV_RGBA2BGR);
+	cv_rgb_image.image = rgb_image;
+
+	cv_rgb_image.toImageMsg(ros_rgb_image);
+	ros_rgb_image.encoding = "bgr8";
+	ros_rgb_image.header.stamp = ros::Time::now();
+	rgb_pub_.publish(ros_rgb_image);
+}
+
+void DenseMapper::optimize(int num_iters)
+{
+	int n = 1;
+	
+	if(num_iters == 0) {
+		float theta = theta_start_;
+		while(theta > theta_min_) {
+			regulariser_.update_q_d(a_, d_, huber_epsilon_, theta);
+
+			costvolume_.minimize_a(d_, a_, theta, lambda_); // point wise search for a[] that minimizes Eaux
+
+			float beta = (theta > 1e-3)? 1e-3 : 1e-4;
+			theta *= (1-beta*n);
+			n++;
+		}
+	}
+	else {
+		float theta = theta_start_;
+		while(n < num_iters) {
+			regulariser_.update_q_d(a_, d_, huber_epsilon_, theta);
+
+			costvolume_.minimize_a(d_, a_, theta, lambda_); // point wise search for a[] that minimizes Eaux
+
+			float beta = (theta > 1e-3)? 1e-3 : 1e-4;
+			theta *= (1-beta*n);
+			n++;
+		}
 	}
 
 	// TODO debug lines
-	a_.download(aImg);	                    d_.download(dImg);
-	aImg *= (1.0f/costvolume_.near);        dImg *= (1.0f/costvolume_.near); // float image scaled to lie in [0-1]
-	imshow("a", aImg); waitKey(10);         imshow("d", dImg); waitKey(10);
-
-	// TODO debug lines
 	createPointCloud();
+
+	// publish depth and rgb images
+	publishDepthRGBImages();
 }

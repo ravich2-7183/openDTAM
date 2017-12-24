@@ -34,17 +34,13 @@ public:
     float count_;
     
 	CostVolume() {};
-	CostVolume(float _rows, float _cols, float _layers, float _near, float _far);
+	CostVolume(float _rows, float _cols, float _layers, float _near, float _far, const cv::Mat& Kcpu);
 	~CostVolume();
   
-	void reset(const cv::Mat& image, const cv::Mat& Kcpu, const cv::Mat& Rrw, const cv::Mat& trw);
+	void reset();
+	void setReferenceImage(const cv::Mat& reference_image, const cv::Mat& Rrw, const cv::Mat& trw);
 	void updateCost(const cv::Mat& image, const cv::Mat& Rmw, const cv::Mat& tmw);
 	void minimize_a(const cv::gpu::GpuMat& d, cv::gpu::GpuMat& a, float theta, float lambda);
-  
-private:
-	void checkInputs(const cv::Mat& R, const cv::Mat& t,
-					 const cv::Mat& image,
-					 const cv::Mat& cameraMatrix);
 };
 
 #endif // COSTVOLUME_HPP

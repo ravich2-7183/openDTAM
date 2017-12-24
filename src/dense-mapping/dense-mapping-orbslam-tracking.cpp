@@ -18,10 +18,13 @@ int main(int argc, char** argv) {
 	string settings_filename = argv[1];
 	cv::FileStorage settings_file(settings_filename, cv::FileStorage::READ);
 
+	bool pause_execution = strcmp(argv[2],"0") == 0? false : true;
+	cout << "pause_execution = " << pause_execution << endl;
+
 	ros::init(argc, argv, "dense_mapper");
 	ros::start();
 
-	DenseMapper dense_mapper(settings_file);
+	DenseMapper dense_mapper(settings_file, pause_execution);
 	
 	// Setting up dynamic reconfigure
 	dynamic_reconfigure::Server<openDTAM::openDTAMConfig> dr_server;

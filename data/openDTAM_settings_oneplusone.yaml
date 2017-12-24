@@ -49,13 +49,14 @@ costvolume.far_inverse_distance  : 0.1 # 0.0
 
 # Regulariser parameters
 # G parameters
-regulariser.alpha_G : 1.0 # 3.5
-regulariser.beta_G  : 1.0 # 0.5
+# set from Fig. 4.11 in Dense Visual SLAM thesis
+regulariser.alpha_G : 100.0
+regulariser.beta_G  : 1.6 
 
 # Optimizer parameters
 optimizer.theta_start  :  0.2
 optimizer.theta_min    :  1.0e-4
 optimizer.theta_step   :  0.97
-optimizer.epsilon      :  0.05 # 1e-4 # huber epsilon
-optimizer.lambda       :  0.5 # regularizing strength # TODO needs to be dynamically altered
-optimizer.denoiserItrs : 10
+optimizer.epsilon      :  0.00147 # huber epsilon from pg 103 of thesis
+optimizer.lambda       :  0.80    # regularizing strength # TODO needs to be dynamically altered
+optimizer.n_iters      : 10       # number of interleaving optimizer iters to use 

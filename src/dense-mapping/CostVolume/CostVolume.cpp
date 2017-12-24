@@ -9,23 +9,7 @@ using namespace std;
 using namespace cv;
 using namespace cv::gpu;
 
-void CostVolume::checkInputs(const cv::Mat& R, const cv::Mat& t,
-							 const cv::Mat& image,
-							 const cv::Mat& cameraMatrix)
-{
-	CV_Assert(R.size() == Size(3, 3));
-	CV_Assert(R.type() == CV_32FC1);
-	CV_Assert(t.size() == Size(3, 1) || t.size() == Size(1, 3));
-	CV_Assert(t.type() == CV_32FC1);
-	CV_Assert(cameraMatrix.size() == Size(3, 3));
-	CV_Assert(cameraMatrix.type() == CV_32FC1);
-
-	// TODO remove this requirement
-	CV_Assert(image.type() == CV_32FC4);
-	CV_Assert(image.rows % 32 == 0 && image.cols % 32 == 0 && image.cols >= 64);
-}
-
-CostVolume::CostVolume(float _rows, float _cols, float _layers, float _near, float _far):
+CostVolume::CostVolume(float _rows, float _cols, float _layers, float _near, float _far, const cv::Mat& Kcpu):
 	rows(_rows), cols(_cols),
 	layers(_layers), near(_near), far(_far)
 {
@@ -52,20 +36,6 @@ CostVolume::CostVolume(float _rows, float _cols, float _layers, float _near, flo
 	cv::gpu::createContinuous(rows, cols, CV_32FC1, reference_image_gray_);
 	cv::gpu::createContinuous(rows, cols, CV_32FC4, current_image_color_);
 	cv::gpu::createContinuous(rows, cols, CV_32FC1, current_image_gray_);
-}
-
-// TODO: camera doesn't change, so set it only once at startup, instead of at each reset
-void CostVolume::reset(const cv::Mat& image, const cv::Mat& Kcpu, const cv::Mat& Rrw, const cv::Mat& trw)
-{
-	checkInputs(Rrw, trw, image, Kcpu);
-
-	Rwr =  Rrw.t();
-	twr = -Rrw.t()*trw;
-	Twr = (Mat_<float>(4,4) <<
-		   Rwr.at<float>(0,0), Rwr.at<float>(0,1), Rwr.at<float>(0,2), twr.at<float>(0),
-		   Rwr.at<float>(1,0), Rwr.at<float>(1,1), Rwr.at<float>(1,2), twr.at<float>(1),
-		   Rwr.at<float>(2,0), Rwr.at<float>(2,1), Rwr.at<float>(2,2), twr.at<float>(2),
-		   0,					0,					 0,				      1);
 
 	K.upload(Kcpu);
 
@@ -82,12 +52,31 @@ void CostVolume::reset(const cv::Mat& image, const cv::Mat& Kcpu, const cv::Mat&
 
 	Kinv.upload(KInvCpu);
 
-	reference_image_color_.upload(image);
-	cv::gpu::cvtColor(reference_image_color_, reference_image_gray_, CV_RGBA2GRAY); // conversion on gpu presumably faster
-
 	cost_data = 0.0f;
+	count_	  = 0.0f;
+}
 
-	count_ = 0.0f;
+void CostVolume::setReferenceImage(const cv::Mat& reference_image, const cv::Mat& Rrw, const cv::Mat& trw)
+{
+	CV_Assert(reference_image.type() == CV_32FC4);
+	CV_Assert(reference_image.rows % 32 == 0 && reference_image.cols % 32 == 0 && reference_image.cols >= 64);
+
+	Rwr =  Rrw.t();
+	twr = -Rrw.t()*trw;
+	Twr = (Mat_<float>(4,4) <<
+		   Rwr.at<float>(0,0), Rwr.at<float>(0,1), Rwr.at<float>(0,2), twr.at<float>(0),
+		   Rwr.at<float>(1,0), Rwr.at<float>(1,1), Rwr.at<float>(1,2), twr.at<float>(1),
+		   Rwr.at<float>(2,0), Rwr.at<float>(2,1), Rwr.at<float>(2,2), twr.at<float>(2),
+		   0,					0,					 0,				      1);
+
+	reference_image_color_.upload(reference_image);
+	cv::gpu::cvtColor(reference_image_color_, reference_image_gray_, CV_RGBA2GRAY); // conversion on gpu presumably faster
+}
+
+void CostVolume::reset()
+{
+	cost_data = 0.0f;
+	count_	  = 0.0f;
 }
 
 // TODO to increase throughput, use async functions to copy from host to device

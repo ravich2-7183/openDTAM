@@ -11,6 +11,7 @@
 #include <cv_bridge/cv_bridge.h>
 #include <tf/transform_datatypes.h>
 #include <tf/transform_listener.h>
+#include <sensor_msgs/Image.h>
 #include <sensor_msgs/image_encodings.h>
 #include <std_msgs/Bool.h>
 
@@ -18,6 +19,7 @@
 #include <openDTAM/openDTAMConfig.h>
 
 #include <boost/thread/thread.hpp>
+
 #include <pcl/common/common_headers.h>
 #include <pcl/visualization/pcl_visualizer.h>
 
@@ -50,8 +52,9 @@ public:
 	float theta_start_;
 	float theta_min_;
 	float theta_step_;
-	float epsilon_;
+    float huber_epsilon_;
 	float lambda_;
+	int n_iters_;
 
 	// ros
 	ros::NodeHandle nh_;
@@ -61,6 +64,10 @@ public:
 	cv_bridge::CvImagePtr input_bridge_;
 	std_msgs::Bool img_processed_msg_;
 	ros::Publisher img_processed_pub_;
+	ros::Publisher depth_pub_;
+	ros::Publisher rgb_pub_;
+
+	bool pause_execution_;
 
 	// point cloud viewer
 	bool updating_pointcloud_;
@@ -68,16 +75,15 @@ public:
 	pcl::PointCloud<pcl::PointXYZRGB>::Ptr point_cloud_ptr_;
 
 public:
-	DenseMapper(const cv::FileStorage& settings_file);
+	DenseMapper(const cv::FileStorage& settings_file, bool pause_execution);
 
 	void receiveImageStream();
 	void processImage(const sensor_msgs::ImageConstPtr& image_msg);
-	void resetCostVolume(const cv::Mat& image, const cv::Mat& Rrw, const cv::Mat& trw);
-	void updateCostVolume(const Mat& image, const cv::Mat& Rmw, const cv::Mat& tmw);
 	void getDepth(Mat& depth_map);
 	void createPointCloud();
 	void showPointCloud();
 	void dynamicReconfigCallback(openDTAM::openDTAMConfig &config, uint32_t level);
 	void dynamicReconfigThread();
-	void optimize();
+	void publishDepthRGBImages();
+	void optimize(int num_iters);
 }; // class DepthEstimator

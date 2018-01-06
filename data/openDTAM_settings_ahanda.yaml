@@ -24,21 +24,25 @@ camera.fps: 20.0
 camera.RGB: 0
 
 #--------------------------------------------------------------------------------------------
+## It is recommended to use dynamic_reconfigure instead of changing the parameters in this file, to tune the performance of the openDTAM system.
+## rosrun rqt_reconfigure rqt_reconfigure
+
 # Cost Volume properties
-costvolume.images_per_costvolume : 10
+costvolume.images_per_costvolume : 30
 costvolume.layers                : 64
 costvolume.near_inverse_distance : 10 # change to .002 or slightly larger
-costvolume.far_inverse_distance  : 0.3 # 0.0 
+costvolume.far_inverse_distance  : 0.1 # 0.0 
 
 # Regulariser parameters
 # G parameters
-regulariser.alpha_G : 3.5 # 0.0
-regulariser.beta_G  : 0.5 # 1.0
+# set from Fig. 4.11 in Dense Visual SLAM thesis
+regulariser.alpha_G : 100.0
+regulariser.beta_G  : 1.6 
 
 # Optimizer parameters
 optimizer.theta_start  :  0.2
 optimizer.theta_min    :  1.0e-4
 optimizer.theta_step   :  0.97
-optimizer.epsilon      :  0.05 # 1e-4 # huber epsilon
-optimizer.lambda       :  0.5 # regularizing strength # TODO needs to be dynamically altered
-optimizer.denoiserItrs : 10
+optimizer.epsilon      :  0.00147 # huber epsilon from pg 103 of thesis
+optimizer.lambda       :  0.80    # regularizing strength # TODO needs to be dynamically altered
+optimizer.n_iters      : 10       # number of interleaving optimizer iters to use 

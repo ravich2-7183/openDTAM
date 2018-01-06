@@ -39,7 +39,8 @@ camera.fps: 1
 camera.RGB: 0
 
 #-----------------------------------------------------------------------------------------------
-## Changing the parameters below to improve the performance of the openDTAM system
+## It is recommended to use dynamic_reconfigure instead of changing the parameters in this file, to tune the performance of the openDTAM system.
+## rosrun rqt_reconfigure rqt_reconfigure
 
 # Cost Volume properties
 costvolume.images_per_costvolume : 30

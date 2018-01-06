@@ -52,8 +52,12 @@ CostVolume::CostVolume(float _rows, float _cols, float _layers, float _near, flo
 
 	Kinv.upload(KInvCpu);
 
+	Cmin	= 100;
+	CminIdx = near; 
+	Cmax	= 200;
+
 	cost_data = 0.0f;
-	count_	  = 0.0f;
+	count_	  = 0;
 }
 
 void CostVolume::setReferenceImage(const cv::Mat& reference_image, const cv::Mat& Rrw, const cv::Mat& trw)
@@ -75,8 +79,12 @@ void CostVolume::setReferenceImage(const cv::Mat& reference_image, const cv::Mat
 
 void CostVolume::reset()
 {
-	cost_data = 0.0f;
-	count_	  = 0.0f;
+	Cmin	= 0.0;
+	CminIdx = near; 
+	Cmax	= 3.0;
+
+	cost_data = 3;
+	count_	  = 0;
 }
 
 // TODO to increase throughput, use async functions to copy from host to device
@@ -98,11 +106,11 @@ void CostVolume::updateCost(const Mat& image, const cv::Mat& Rmw, const cv::Mat&
 
 	// TODO check this carefully, why isn't dataContainer.step == rows*cols?
 	updateCostVolumeCaller( (float*)K.data, (float*)Kinv.data, (float*)Tmr_gpu.data,
-							rows, cols, current_image_gray_.step,
+							rows, cols, current_image_color_.step,
 							near, far, layers, rows*cols,
 							cdata, count_,
 							(float*)(Cmin.data), (float*)(Cmax.data), (float*)(CminIdx.data),
-							(float*)(reference_image_gray_.data), (float*)(current_image_gray_.data));
+							(float4*)(reference_image_color_.data), (float4*)(current_image_color_.data));
 }
 
 void CostVolume::minimize_a(const cv::gpu::GpuMat& d, cv::gpu::GpuMat& a, float theta, float lambda)

@@ -116,19 +116,23 @@ void DenseMapper::processImage(const sensor_msgs::ImageConstPtr& image_msg)
 				   t.y(),
 				   t.z());
 
-	// // TODO debug
-	// tcw = (-Rcw.t())*tcw;
-	// Rcw =  Rcw.t();
-
 	if(costvolume_.count_ == 0) {
 		cout << "resetting reference image" << endl;
 
 		costvolume_.setReferenceImage(image_, Rcw, tcw);
 		regulariser_.initialize(costvolume_.reference_image_gray_);
+
+		// TODO debug lines
+		namedWindow("g", WINDOW_AUTOSIZE);
+		Mat gImg;
+		gImg.create(rows_, cols_, CV_32FC1);
+		regulariser_.g_.download(gImg);
+		// aImg *= (1.0f/costvolume_.near);
+		imshow("g", gImg); waitKey(10);
 		
 		costvolume_.count_++;
 
-		img_processed_pub_.publish(img_processed_msg_);
+		// img_processed_pub_.publish(img_processed_msg_);
 		return;
 	}
 	
@@ -140,15 +144,24 @@ void DenseMapper::processImage(const sensor_msgs::ImageConstPtr& image_msg)
 	costvolume_.CminIdx.copyTo(d_);
 	costvolume_.CminIdx.copyTo(a_);
 
-	this->optimize(0); // 0: fully optimize
+	if(costvolume_.count_ >= images_per_costvolume_ + 1) { 
+		this->optimize(0); // 0: fully optimize
 
-	if(costvolume_.count_ == images_per_costvolume_) { 
+		createPointCloud();
+		publishDepthRGBImages();
+
 		costvolume_.reset();
+
 		if(!pause_execution_)
 			img_processed_pub_.publish(img_processed_msg_);
 	}
 	else {
-		img_processed_pub_.publish(img_processed_msg_);
+		this->optimize(n_iters_);
+
+		createPointCloud();
+		publishDepthRGBImages();
+
+		// img_processed_pub_.publish(img_processed_msg_);
 	}
 }
 
@@ -315,10 +328,4 @@ void DenseMapper::optimize(int num_iters)
 			n++;
 		}
 	}
-
-	// TODO debug lines
-	createPointCloud();
-
-	// publish depth and rgb images
-	publishDepthRGBImages();
 }

@@ -2,14 +2,14 @@
 #include "CostVolume.cuh"
 
 // 2D float texture
-static texture<float, cudaTextureType2D, cudaReadModeElementType> current_imageTexRef;
+static texture<float4, cudaTextureType2D, cudaReadModeElementType> current_imageTexRef;
 
 static __global__ void updateCostVolume(float* K, float* Kinv, float* Tmr,
 										int rows, int cols,
 										float near, float far, int layers, int layerStep,
 										float* Cost, float count,
 										float* Cmin, float* Cmax, float* CminIdx,
-										float* reference_image, float* current_image)
+										float4* reference_image, float4* current_image)
 {
 	const int x = blockIdx.x * blockDim.x + threadIdx.x;
 	const int y = blockIdx.y * blockDim.y + threadIdx.y;
@@ -20,10 +20,10 @@ static __global__ void updateCostVolume(float* K, float* Kinv, float* Tmr,
 
 	const float depthStep = (near - far)/(layers-1);
 
-	float Ir = reference_image[i];
+	float4 Ir = reference_image[i];
 
 	int	  minl = layers-1;
-	float Cost_min = 1e+30, Cost_max = 0.0;
+	float Cost_min = 1, Cost_max = 0;
 	for(int l=layers-1; l >= 0; l--) {
 		float d = far + float(l)*depthStep;
 		// 0 1 2
@@ -45,15 +45,22 @@ static __global__ void updateCostVolume(float* K, float* Kinv, float* Tmr,
 		float um = K[0]*(xm/zm) + K[2];
 		float vm = K[4]*(ym/zm) + K[5];
 
-		if( (um > float(cols)) || (um < 0.0f) || (vm > float(rows)) || (vm < 0.0f) )
-			continue;
+		// if( (um > float(cols)) || (um < 0.0f) || (vm > float(rows)) || (vm < 0.0f) )
+		// 	continue;
 
-		float Im = tex2D(current_imageTexRef, um, vm);
+		float4 Im = tex2D(current_imageTexRef, um, vm);
+		
+		float rho = fabsf(Im.x - Ir.x) + fabsf(Im.y - Ir.y) + fabsf(Im.z - Ir.z);
+		// The following ensures that for pixels that reproject to a point lying outside the frame (Ir), 
+		// the cost is unchanged after update/averaging in the next step. 
+		// The corner case of this happening for the first Ir is handled by setting initial cost value to 1 in CostVolume.cpp
+		if((um > cols || um < 0 || vm > rows || vm < 0))
+			rho = Cost[i+l*layerStep];
 
-		float rho = fabsf(Ir - Im);
 		Cost[i+l*layerStep] = (Cost[i+l*layerStep]*(count-1) + rho) / count; // TODO: maintain per pixel count? Not necessary. 
 		float Cost_l = Cost[i+l*layerStep];
-		if(Cost_l <= Cost_min) {
+
+		if(Cost_l < Cost_min) {
 			Cost_min = Cost_l;
 			minl = l;
 		}
@@ -61,9 +68,9 @@ static __global__ void updateCostVolume(float* K, float* Kinv, float* Tmr,
 	}
 
 	Cmin[i]	   = Cost_min;
-	CminIdx[i] = far + float(minl)*depthStep; // scaling is done when used in DepthEstimator::optimize
+	CminIdx[i] = far + float(minl)*depthStep;
 	Cmax[i]	   = Cost_max;
-
+	
 	// sublayer sampling as the minimum of the parabola with the 2 points around (minz, minv)
 	if(minl == 0 || minl == layers-1) // first or last was best
 		return;
@@ -81,14 +88,14 @@ void updateCostVolumeCaller(float* K, float* Kinv, float* Tmr,
 							float near, float far, int layers, int layerStep,
 							float* Cdata, float count,
 							float* Cmin, float* Cmax, float* CminIdx,
-							float* reference_image, float* current_image)
+							float4* reference_image, float4* current_image)
 {
 	dim3 dimBlock(16, 16);
 	dim3 dimGrid((cols + dimBlock.x - 1) / dimBlock.x,
 				 (rows + dimBlock.y - 1) / dimBlock.y);
 
 	// Set texture reference parameters
-	cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc(32, 0, 0, 0, cudaChannelFormatKindFloat);
+	cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc(32, 32, 32, 32, cudaChannelFormatKindFloat);
 
 	current_imageTexRef.normalized     = false;
 	current_imageTexRef.addressMode[0] = cudaAddressModeClamp;	// out of border references return first or last element

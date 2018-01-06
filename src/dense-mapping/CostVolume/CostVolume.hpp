@@ -24,12 +24,12 @@ public:
     cv::gpu::GpuMat reference_image_gray_;
     cv::gpu::GpuMat current_image_color_;
     cv::gpu::GpuMat current_image_gray_;
-	cv::gpu::GpuMat Cmin; // TODO unnecessary variable
-	cv::gpu::GpuMat Cmax; // TODO unnecessary variable
-	cv::gpu::GpuMat CminIdx; // TODO a better name: d_Cmin?
+	cv::gpu::GpuMat Cmin;
+	cv::gpu::GpuMat Cmax;
+	cv::gpu::GpuMat CminIdx;
 
     cv::gpu::GpuMat cost_data; // TODO rename this to Cdata for consistency
-	float *cdata; // TODO unnecessary variable
+	float *cdata;
 
     float count_;
     

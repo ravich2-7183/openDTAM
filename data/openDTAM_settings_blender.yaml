@@ -6,10 +6,10 @@ camera.rows: 480
 camera.cols: 640
 
 # Camera calibration parameters (OpenCV) 
-camera.fx: 481.20
-camera.fy: 480.00
-camera.cx: 319.5 # 800.7
-camera.cy: 239.5 # 719.5
+camera.fx: 896.00
+camera.fy: 933.33
+camera.cx: 320
+camera.cy: 240
 
 # Camera distortion paremeters (OpenCV) --
 camera.k1: 0.0
@@ -24,7 +24,7 @@ camera.fps: 20.0
 camera.RGB: 0
 
 # Camera transform source (ORB_SLAM, Blender, etc.)
-camera.transform_source: 'ORB_SLAM'
+camera.transform_source: 'Blender'
 
 #--------------------------------------------------------------------------------------------
 ## It is recommended to use dynamic_reconfigure instead of changing the parameters in this file, to tune the performance of the openDTAM system.

@@ -9,6 +9,7 @@ DenseMapper::DenseMapper(const cv::FileStorage& settings_file, bool pause_execut
 	rows_(settings_file["camera.rows"]),
 	cols_(settings_file["camera.cols"]),
 	fps_(settings_file["camera.fps"]),
+	transform_source_(settings_file["camera.transform_source"]),
 	layers_(settings_file["costvolume.layers"]),
 	near_(settings_file["costvolume.near_inverse_distance"]),
 	far_(settings_file["costvolume.far_inverse_distance"]),
@@ -85,9 +86,9 @@ void DenseMapper::processImage(const sensor_msgs::ImageConstPtr& image_msg)
 	ros::Duration timeout(1.0 / fps_);
 	try {
 		// TODO is the inverse transform the required one ???
-		tf_listener_.waitForTransform("/ORB_SLAM/Camera", "/ORB_SLAM/World",
+		tf_listener_.waitForTransform("/" + transform_source_ + "/Camera", "/" + transform_source_ + "/World",
 									  acquisition_time, timeout);
-		tf_listener_.lookupTransform("/ORB_SLAM/Camera", "/ORB_SLAM/World",
+		tf_listener_.lookupTransform("/" + transform_source_ + "/Camera", "/" + transform_source_ + "/World",
 									 acquisition_time, transform_);
 
 		// TODO debug lines
@@ -96,7 +97,7 @@ void DenseMapper::processImage(const sensor_msgs::ImageConstPtr& image_msg)
 	catch (tf::TransformException& ex) {
 		ROS_WARN("[DenseMapper] TF exception: \n%s", ex.what());
 
-		tf_listener_.lookupTransform("/ORB_SLAM/Camera", "/ORB_SLAM/World",
+		tf_listener_.lookupTransform("/" + transform_source_ + "/Camera", "/" + transform_source_ + "/World",
 									 ros::Time(0), transform_);
 
 		// TODO debug lines

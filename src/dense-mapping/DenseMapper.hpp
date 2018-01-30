@@ -46,6 +46,7 @@ public:
 	const int rows_, cols_;
 	float fps_;
 	Mat camera_matrix_;
+	string transform_source_;
 
 	// Optimization parameters
 	GpuMat a_, d_;

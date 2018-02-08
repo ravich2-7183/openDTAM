@@ -13,8 +13,8 @@ $ ./blender_play_on_msg.py /path/to/blender_images/ /path/to/blender_camera_pose
 
 Starts a ros node that listens for Bool messages on the /img_processed topic, and in response publishes an Image message on the /camera/image_raw topic and the corresponding pose on /tf (with a simple transform tree /blender_world -> /tf/blender_camera), reading images from the folder supplied as the 1st argument, and poses from the csv file supplied as the 2nd argument. 
 
-csv file format (camera poses)
-frame#, x, y, z, phi, theta, psi
+csv file format for camera poses. camera position: x,y,z, camera orientation (euler angles XYZ sequence): rx, ry, rz
+frame#, x, y, z, rx, ry, rz
 
 image file name format
 frame#.*
@@ -65,9 +65,9 @@ class BlenderROSPlay(object):
         img_msg.header.stamp = rospy.Time.now()
         self.image_pub.publish(img_msg)
         
-        x, y, z, phi, theta, psi = self.poses[i]
+        x, y, z, rx, ry, rz = self.poses[i]
         self.tf_broadcaster.sendTransform((x, y, z),
-                                          tf.transformations.quaternion_from_euler(phi, theta, psi), # check that axes sequence is correct
+                                          tf.transformations.quaternion_from_euler(rx, ry, rz, 'sxyz'), # blender poses are output as sxyz
                                           rospy.Time.now(),
                                           "/Blender/Camera",
                                           "/Blender/World")

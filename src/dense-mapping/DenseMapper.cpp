@@ -4,7 +4,7 @@ using namespace cv;
 using namespace cv::gpu;
 using namespace std;
 
-DenseMapper::DenseMapper(const cv::FileStorage& settings_file, bool pause_execution) :
+DenseMapper::DenseMapper(const cv::FileStorage& settings_file) :
 	nh_(),
 	rows_(settings_file["camera.rows"]),
 	cols_(settings_file["camera.cols"]),
@@ -22,7 +22,8 @@ DenseMapper::DenseMapper(const cv::FileStorage& settings_file, bool pause_execut
     huber_epsilon_(settings_file["optimizer.epsilon"]),
 	lambda_(settings_file["optimizer.lambda"]),
 	n_iters_(settings_file["optimizer.n_iters"]),
-	pause_execution_(pause_execution),
+	pause_execution_(true),
+	regularise_(true),
 	point_cloud_ptr_(new pcl::PointCloud<pcl::PointXYZRGB>())
 {
 	float fx, fy, cx, cy;
@@ -133,7 +134,9 @@ void DenseMapper::processImage(const sensor_msgs::ImageConstPtr& image_msg)
 		
 		costvolume_.count_++;
 
-		// img_processed_pub_.publish(img_processed_msg_);
+		if(!pause_execution_)
+			img_processed_pub_.publish(img_processed_msg_);
+
 		return;
 	}
 	
@@ -146,7 +149,8 @@ void DenseMapper::processImage(const sensor_msgs::ImageConstPtr& image_msg)
 	costvolume_.CminIdx.copyTo(a_);
 
 	if(costvolume_.count_ >= images_per_costvolume_ + 1) { 
-		this->optimize(0); // 0: fully optimize
+		if(regularise_)
+			this->optimize(0); // 0: fully optimize
 
 		createPointCloud();
 		publishDepthRGBImages();
@@ -157,12 +161,14 @@ void DenseMapper::processImage(const sensor_msgs::ImageConstPtr& image_msg)
 			img_processed_pub_.publish(img_processed_msg_);
 	}
 	else {
-		this->optimize(n_iters_);
+		if(regularise_)
+			this->optimize(n_iters_);
 
 		createPointCloud();
 		publishDepthRGBImages();
 
-		// img_processed_pub_.publish(img_processed_msg_);
+		if(!pause_execution_)
+			img_processed_pub_.publish(img_processed_msg_);
 	}
 }
 
@@ -239,19 +245,30 @@ void DenseMapper::dynamicReconfigCallback(openDTAM::openDTAMConfig &config, uint
 {
 	ROS_INFO("Processing reconfigure request.");
 
-	images_per_costvolume_ =         config.costvolume_images;
+	images_per_costvolume_ =         config.costvolume_images; // used only in this file. no further action necessary.
+
 //  layers_                =         config.costvolume_layers;
 	near_                  =         1 / config.near_distance;
 	far_                   =         1 / config.far_distance;
+	costvolume_.near       =         near_;
+	costvolume_.far        =         far_;
+
 	alpha_G_               =         config.alpha_G;
 	beta_G_                =         config.beta_G;
-	theta_start_           =         config.theta_start;
-	theta_min_             =         config.theta_min;
-	theta_step_            =         config.theta_step;
-    huber_epsilon_         =         config.huber_epsilon;
-	lambda_                =         config.lambda;
-	n_iters_               =         config.n_iters;
+	regulariser_.alphaG_   =         alpha_G_;
+	regulariser_.betaG_    =         beta_G_;
 
+	theta_start_           =         config.theta_start; // used only in this file. no further action necessary.
+	theta_min_             =         config.theta_min; // used only in this file. no further action necessary.
+	theta_step_            =         config.theta_step; // used only in this file. no further action necessary.
+	huber_epsilon_         =         config.huber_epsilon; // dependents updated when regulariser_.update_q_d is called.
+	lambda_                =         config.lambda; // used only in this file. no further action necessary.
+	n_iters_               =         config.n_iters; // used only in this file. no further action necessary.
+
+	pause_execution_       =         config.pause_execution; // used only in this file. no further action necessary.
+	regularise_            =         config.regularise; // used only in this file. no further action necessary.
+
+	// printout new parameters to shell
 	cout <<	"images_per_costvolume_ = " << images_per_costvolume_ << endl;
 	cout <<	"near_                  = " << config.near_distance   << endl;
 	cout <<	"far_                   = " << config.far_distance    << endl;
@@ -260,7 +277,7 @@ void DenseMapper::dynamicReconfigCallback(openDTAM::openDTAMConfig &config, uint
 	cout <<	"theta_start_           = " << theta_start_           << endl;
 	cout <<	"theta_min_             = " << theta_min_             << endl;
 	cout <<	"theta_step_            = " << theta_step_            << endl;
-    cout <<	"epsilon_               = " << huber_epsilon_         << endl;
+	cout <<	"epsilon_               = " << huber_epsilon_         << endl;
 	cout <<	"lambda_                = " << lambda_                << endl;
 	cout <<	"n_iters_               = " << n_iters_               << endl;
 }

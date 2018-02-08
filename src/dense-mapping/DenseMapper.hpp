@@ -69,6 +69,7 @@ public:
 	ros::Publisher rgb_pub_;
 
 	bool pause_execution_;
+	bool regularise_;
 
 	// point cloud viewer
 	bool updating_pointcloud_;
@@ -76,7 +77,7 @@ public:
 	pcl::PointCloud<pcl::PointXYZRGB>::Ptr point_cloud_ptr_;
 
 public:
-	DenseMapper(const cv::FileStorage& settings_file, bool pause_execution);
+	DenseMapper(const cv::FileStorage& settings_file);
 
 	void receiveImageStream();
 	void processImage(const sensor_msgs::ImageConstPtr& image_msg);

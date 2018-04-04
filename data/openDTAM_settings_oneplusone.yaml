@@ -22,8 +22,8 @@ camera.cols: 640
 
 # Camera calibration parameters (OpenCV) 
 camera.fx: 516.694592 #508.353158
-camera.fy: 516.865044 #510.167196
-camera.cx: 322.716301 #311.288297
+camera.fy: -516.865044 #510.167196  # -ve since (ur,vr) have origin at top left, and are measured +ve towards right and down. vr = -fy*Y/Z + cx
+camera.cx: 322.716301 #311.288297 # cx, cy indicate optical center as measured from top-left, and +ve towards right and down.
 camera.cy: 245.584421 #235.728826
 
 # Camera distortion parameters (OpenCV)

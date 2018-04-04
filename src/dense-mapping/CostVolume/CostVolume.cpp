@@ -52,11 +52,12 @@ CostVolume::CostVolume(float _rows, float _cols, float _layers, float _near, flo
 
 	Kinv.upload(KInvCpu);
 
+	// TODO replace following lines by a call to CostVolume::reset()
 	Cmin	= 100;
 	CminIdx = near; 
 	Cmax	= 200;
 
-	cost_data = 0.0f;
+	cost_data = 1.0f;
 	count_	  = 0;
 }
 
@@ -64,6 +65,8 @@ void CostVolume::setReferenceImage(const cv::Mat& reference_image, const cv::Mat
 {
 	CV_Assert(reference_image.type() == CV_32FC4);
 	CV_Assert(reference_image.rows % 32 == 0 && reference_image.cols % 32 == 0 && reference_image.cols >= 64);
+
+	// reset();
 
 	Rwr =  Rrw.t();
 	twr = -Rrw.t()*trw;
@@ -83,7 +86,7 @@ void CostVolume::reset()
 	CminIdx = near; 
 	Cmax	= 3.0;
 
-	cost_data = 3;
+	cost_data = 1.0f;
 	count_	  = 0;
 }
 

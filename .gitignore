@@ -12,4 +12,6 @@ lib/
 *.includes
 docs/
 src/openDTAM/
+*.bin
+*.bin.info
 

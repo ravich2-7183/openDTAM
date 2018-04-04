@@ -1,4 +1,4 @@
-%YAML:1.0
+#%YAML:1.0
 
 # Camera Parameters. Adjust them!
 camera.rows: 480

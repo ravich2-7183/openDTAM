@@ -14,6 +14,7 @@ DenseMapper::DenseMapper(const cv::FileStorage& settings_file) :
 	near_(settings_file["costvolume.near_inverse_distance"]),
 	far_(settings_file["costvolume.far_inverse_distance"]),
 	images_per_costvolume_(settings_file["costvolume.images_per_costvolume"]),
+	im_count_(0), 
 	alpha_G_(settings_file["regulariser.alpha_G"]),
 	beta_G_(settings_file["regulariser.beta_G"]),
 	theta_start_(settings_file["optimizer.theta_start"]),
@@ -73,7 +74,7 @@ void DenseMapper::processImage(const sensor_msgs::ImageConstPtr& image_msg)
 		input_bridge_ = cv_bridge::toCvCopy(image_msg); // TODO: use cv_bridge::toCvShare instead?
 		image_ = input_bridge_->image; // TODO: is this copy required?
 		image_.convertTo(image_, CV_32FC3, 1.0/255.0); // float image [0-1] // TODO: make this more generic
-		cvtColor(image_, image_, CV_RGB2RGBA); // TODO check if image is in BGR format. RGBA for better memory alignment. 
+		cvtColor(image_, image_, CV_BGR2RGBA); // TODO check if image is in BGR format. RGBA for better memory alignment. 
 
 		// TODO debug lines
 		cout << "Received image with time stamp: " << image_msg->header.stamp << endl;
@@ -98,11 +99,13 @@ void DenseMapper::processImage(const sensor_msgs::ImageConstPtr& image_msg)
 	catch (tf::TransformException& ex) {
 		ROS_WARN("[DenseMapper] TF exception: \n%s", ex.what());
 
-		tf_listener_.lookupTransform("/" + transform_source_ + "/Camera", "/" + transform_source_ + "/World",
-									 ros::Time(0), transform_);
+		// tf_listener_.lookupTransform("/" + transform_source_ + "/Camera", "/" + transform_source_ + "/World",
+		// 							 ros::Time(0), transform_);
 
-		// TODO debug lines
-		cout << "Received delayed transform with time stamp: " << transform_.stamp_ << endl;
+		// // TODO debug lines
+		// cout << "Received delayed transform with time stamp: " << transform_.stamp_ << endl;
+		cout << "Received delayed transform, skipping image." << endl;
+		return;
 	}
 
 	tf::Matrix3x3 R = transform_.getBasis();
@@ -118,58 +121,37 @@ void DenseMapper::processImage(const sensor_msgs::ImageConstPtr& image_msg)
 				   t.y(),
 				   t.z());
 
-	if(costvolume_.count_ == 0) {
+	if(im_count_ == 0) {
 		cout << "resetting reference image" << endl;
 
+		costvolume_.reset();
 		costvolume_.setReferenceImage(image_, Rcw, tcw);
 		regulariser_.initialize(costvolume_.reference_image_gray_);
-
-		// TODO debug lines
-		namedWindow("g", WINDOW_AUTOSIZE);
-		Mat gImg;
-		gImg.create(rows_, cols_, CV_32FC1);
-		regulariser_.g_.download(gImg);
-		// aImg *= (1.0f/costvolume_.near);
-		imshow("g", gImg); waitKey(10);
-		
-		costvolume_.count_++;
-
-		if(!pause_execution_)
-			img_processed_pub_.publish(img_processed_msg_);
-
-		return;
-	}
-	
-	cout << "count_ = " << costvolume_.count_ << endl;
-	cout << "updating cost volume" << endl;
-
-	costvolume_.updateCost(image_, Rcw, tcw);
-
-	costvolume_.CminIdx.copyTo(d_);
-	costvolume_.CminIdx.copyTo(a_);
-
-	if(costvolume_.count_ >= images_per_costvolume_ + 1) { 
-		if(regularise_)
-			this->optimize(0); // 0: fully optimize
-
-		createPointCloud();
-		publishDepthRGBImages();
-
-		costvolume_.reset();
-
-		if(!pause_execution_)
-			img_processed_pub_.publish(img_processed_msg_);
 	}
 	else {
-		if(regularise_)
-			this->optimize(n_iters_);
+		cout << "im_count_ = " << im_count_ << endl;
+		cout << "updating cost volume" << endl;
 
-		createPointCloud();
+		costvolume_.updateCost(image_, Rcw, tcw);
+
+		bool fully = true;
+		bool partially = !fully;
+		if(im_count_ > images_per_costvolume_) {
+			im_count_ = -1;
+			optimize(fully);
+		}
+		else {
+			optimize(partially);
+		}
+
 		publishDepthRGBImages();
-
-		if(!pause_execution_)
-			img_processed_pub_.publish(img_processed_msg_);
+		createPointCloud();
 	}
+
+	im_count_++;
+
+	if(!pause_execution_)
+		img_processed_pub_.publish(img_processed_msg_);
 }
 
 void DenseMapper::getDepth(Mat& depth_map)
@@ -197,9 +179,9 @@ void DenseMapper::createPointCloud()
 			point.z = 1.0/inv_depth.at<float>(v,u);
 			point.x = (Kinv.at<float>(0,0)*u + Kinv.at<float>(0,2)) * point.z;
 			point.y = (Kinv.at<float>(1,1)*v + Kinv.at<float>(1,2)) * point.z;
-			point.b = static_cast<uint8_t>(reference_image.at<cv::Vec4f>(v,u)[0] * 255);
+			point.r = static_cast<uint8_t>(reference_image.at<cv::Vec4f>(v,u)[0] * 255);
 			point.g = static_cast<uint8_t>(reference_image.at<cv::Vec4f>(v,u)[1] * 255);
-			point.r = static_cast<uint8_t>(reference_image.at<cv::Vec4f>(v,u)[2] * 255);
+			point.b = static_cast<uint8_t>(reference_image.at<cv::Vec4f>(v,u)[2] * 255);
 
 			point_cloud_ptr_->points.push_back(point);
 		}
@@ -318,32 +300,26 @@ void DenseMapper::publishDepthRGBImages()
 	rgb_pub_.publish(ros_rgb_image);
 }
 
-void DenseMapper::optimize(int num_iters)
+void DenseMapper::optimize(bool fully_optimize)
 {
+	costvolume_.CminIdx.copyTo(d_);
+	costvolume_.CminIdx.copyTo(a_);
+
+	if(!regularise_)
+		return;
+
 	int n = 1;
-	
-	if(num_iters == 0) {
-		float theta = theta_start_;
-		while(theta > theta_min_) {
-			regulariser_.update_q_d(a_, d_, huber_epsilon_, theta);
+	float theta = theta_start_;
+	while(theta > theta_min_) {
+		regulariser_.update_q_d(a_, d_, huber_epsilon_, theta);
 
-			costvolume_.minimize_a(d_, a_, theta, lambda_); // point wise search for a[] that minimizes Eaux
+		costvolume_.minimize_a(d_, a_, theta, lambda_); // point wise search for a[] that minimizes Eaux
 
-			float beta = (theta > 1e-3)? 1e-3 : 1e-4;
-			theta *= (1-beta*n);
-			n++;
-		}
-	}
-	else {
-		float theta = theta_start_;
-		while(n < num_iters) {
-			regulariser_.update_q_d(a_, d_, huber_epsilon_, theta);
+		float beta = (theta > 1e-3)? 1e-3 : 1e-4;
+		theta *= (1-beta*n);
+		n++;
 
-			costvolume_.minimize_a(d_, a_, theta, lambda_); // point wise search for a[] that minimizes Eaux
-
-			float beta = (theta > 1e-3)? 1e-3 : 1e-4;
-			theta *= (1-beta*n);
-			n++;
-		}
+		if(!fully_optimize && n > n_iters_)
+			break;
 	}
 }

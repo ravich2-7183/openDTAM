@@ -8,17 +8,16 @@ from sensor_msgs.msg import Image
 import cv2
 from cv_bridge import CvBridge, CvBridgeError 
 
+
 usage = """
 $ ./blender_play_on_msg.py /path/to/blender_images/ /path/to/blender_camera_poses.csv
 
-Starts a ros node that listens for Bool messages on the /img_processed topic, and in response publishes an Image message on the /camera/image_raw topic and the corresponding pose on /tf (with a simple transform tree /blender_world -> /tf/blender_camera), reading images from the folder supplied as the 1st argument, and poses from the csv file supplied as the 2nd argument. 
+Starts a ros node that listens for Bool messages on the /img_processed topic, and in response publishes an Image message on the /camera/image_raw topic and the corresponding pose on /tf/blender_world; /tf/blender_camera, reading images from the folder supplied as the first argument, and poses from the csv file supplied as the 2nd argument. 
 
-csv file format for camera poses. camera position: x,y,z, camera orientation (euler angles XYZ sequence): rx, ry, rz
-frame#, x, y, z, rx, ry, rz
-
-image file name format
-frame#.*
+csv file format (camera poses)
+frame#, x, y, z, phi, theta, psi
 """
+
 
 class BlenderROSPlay(object):
     def __init__(self, blender_images_dir, blender_camera_poses_csv):
@@ -35,10 +34,7 @@ class BlenderROSPlay(object):
         assert(len(self.img_filenames) == len(self.poses))
         self.data_length = len(self.poses)
         
-        self.min = min(self.poses.keys())
-        self.max = max(self.poses.keys())
-        
-        self.counter =  self.min
+        self.counter =  1
         self.incr    = +1
         
         self.listener()
@@ -68,15 +64,16 @@ class BlenderROSPlay(object):
         img_msg.header.stamp = rospy.Time.now()
         self.image_pub.publish(img_msg)
         
-        x, y, z, rx, ry, rz = self.poses[i]
+        pose = self.poses[i]
+        x, y, z, phi, theta, psi = self.poses[i]
         self.tf_broadcaster.sendTransform((x, y, z),
-                                          tf.transformations.quaternion_from_euler(rx, ry, rz, 'sxyz'), # blender poses are output as sxyz
+                                          tf.transformations.quaternion_from_euler(phi, theta, psi), # check that axes sequence is correct
                                           rospy.Time.now(),
-                                          "/Blender/Camera",
-                                          "/Blender/World")
+                                          "/blender/camera",
+                                          "/blender/world")
         
-        self.incr = +1 if(self.incr == +1 and self.counter < self.max) else -1
-        self.incr = -1 if(self.incr == -1 and self.counter > self.min) else +1
+        self.incr = +1 if(self.incr == +1 and self.counter < self.data_length) else -1
+        self.incr = -1 if(self.incr == -1 and self.counter > 1) else +1
         self.counter += self.incr
     
     def listener(self):

@@ -7,7 +7,7 @@ camera.cols: 640
 
 # Camera calibration parameters (OpenCV) 
 camera.fx: 481.20
-camera.fy: 480.00 # ahanda recommends using -ve fy, see: http://www.doc.ic.ac.uk/~ahanda/VaFRIC/codes.html
+camera.fy: -480.00 # ahanda recommends using -ve fy, see: http://www.doc.ic.ac.uk/~ahanda/VaFRIC/codes.html
 camera.cx: 319.5 # 800.7
 camera.cy: 239.5 # 719.5
 
@@ -32,10 +32,10 @@ camera.transform_source: 'Blender'
 ## rosrun rqt_reconfigure rqt_reconfigure
 
 # Cost Volume properties
-costvolume.images_per_costvolume : 30
+costvolume.images_per_costvolume : 60
 costvolume.layers                : 64
-costvolume.near_inverse_distance : 10 # change to .002 or slightly larger
-costvolume.far_inverse_distance  : 0.1 # 0.0 
+costvolume.near_inverse_distance : 0.0167
+costvolume.far_inverse_distance  : 0.0016
 
 # Regulariser parameters
 # G parameters

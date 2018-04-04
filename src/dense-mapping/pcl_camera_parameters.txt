@@ -1,0 +1,7 @@
+Clipping plane [near,far] 0.0186334, 18.6334
+Focal point [x,y,z] 0, 0, 1
+Position [x,y,z] -0.0067756, -0.0685564, -0.462478
+View up [x,y,z] -0.0105255, -0.998845, 0.0468715
+Camera view angle [degrees] 49.1311
+Window size [x,y] 960, 540
+Window position [x,y] 661, 317

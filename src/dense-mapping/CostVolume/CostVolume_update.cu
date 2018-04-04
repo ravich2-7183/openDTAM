@@ -23,15 +23,17 @@ static __global__ void updateCostVolume(float* K, float* Kinv, float* Tmr,
 	float4 Ir = reference_image[i];
 
 	int	  minl = layers-1;
+	float pix_distance = rows*rows + cols*cols;
+	float current_pix_distance;
 	float Cost_min = 1, Cost_max = 0;
 	for(int l=layers-1; l >= 0; l--) {
 		float d = far + float(l)*depthStep;
 		// 0 1 2
 		// 3 4 5
 		// 6 7 8
-		float zr = 1.0/d; // divide by 0 is evaluated as Inf, as per IEEE-754
-		float xr = (Kinv[0]*ur + Kinv[2])*zr;
-		float yr = (Kinv[4]*vr + Kinv[5])*zr;
+		float zr = -1.0/d; // divide by 0 is evaluated as Inf, as per IEEE-754
+		float xr = (Kinv[0]*ur + Kinv[2])*fabsf(zr);
+		float yr = (Kinv[4]*vr + Kinv[5])*fabsf(zr);
 		//  0  1  2  3
 		//  4  5  6  7
 		//  8  9 10 11
@@ -42,13 +44,10 @@ static __global__ void updateCostVolume(float* K, float* Kinv, float* Tmr,
 		// 0 1 2
 		// 3 4 5
 		// 6 7 8
-		float um = K[0]*(xm/zm) + K[2];
-		float vm = K[4]*(ym/zm) + K[5];
-
-		// if( (um > float(cols)) || (um < 0.0f) || (vm > float(rows)) || (vm < 0.0f) )
-		// 	continue;
-
-		float4 Im = tex2D(current_imageTexRef, um, vm);
+		float um = K[0]*(xm/fabsf(zm)) + K[2];
+		float vm = K[4]*(ym/fabsf(zm)) + K[5];
+		
+		float4 Im = tex2D(current_imageTexRef, um+0.5, vm+0.5); // see G.2 of CUDA programming guide for the added 0.5
 		
 		float rho = fabsf(Im.x - Ir.x) + fabsf(Im.y - Ir.y) + fabsf(Im.z - Ir.z);
 		// The following ensures that for pixels that reproject to a point lying outside the frame (Ir), 
@@ -60,9 +59,11 @@ static __global__ void updateCostVolume(float* K, float* Kinv, float* Tmr,
 		Cost[i+l*layerStep] = (Cost[i+l*layerStep]*(count-1) + rho) / count; // TODO: maintain per pixel count? Not necessary. 
 		float Cost_l = Cost[i+l*layerStep];
 
-		if(Cost_l < Cost_min) {
+		current_pix_distance = (um-ur)*(um-ur) + (vm-vr)*(vm-vr);
+		if(Cost_l <= Cost_min &&  current_pix_distance < pix_distance) {
 			Cost_min = Cost_l;
 			minl = l;
+			pix_distance = current_pix_distance;
 		}
 		Cost_max = fmaxf(Cost_l, Cost_max);
 	}
@@ -103,8 +104,8 @@ void updateCostVolumeCaller(float* K, float* Kinv, float* Tmr,
 	current_imageTexRef.filterMode     = cudaFilterModeLinear;
 
 	// Bind current_image to the texture reference
-	size_t offset;
-	cudaBindTexture2D(&offset, current_imageTexRef, current_image, channelDesc, cols, rows, imageStep);
+	// size_t offset;
+	cudaBindTexture2D(NULL, current_imageTexRef, current_image, channelDesc, cols, rows, imageStep);
 
 	cudaDeviceSynchronize();
 	cudaSafeCall(cudaGetLastError());

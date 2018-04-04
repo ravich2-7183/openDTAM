@@ -87,5 +87,5 @@ public:
 	void dynamicReconfigCallback(openDTAM::openDTAMConfig &config, uint32_t level);
 	void dynamicReconfigThread();
 	void publishDepthRGBImages();
-	void optimize(int num_iters);
+	void optimize(bool fully_optimize);
 }; // class DepthEstimator

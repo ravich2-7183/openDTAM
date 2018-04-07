@@ -1,26 +1,19 @@
 %% Test the output costvolume from test-depth-estimation.cpp
 
+%% default dir and file names
+img_dirname = '../../../../../data/rgb_images/';
+
+poses_pathname = '../../../../../data/';
+poses_filename = 'camera_poses.csv';
+
+yaml_filename = '../../../../../data/openDTAM_settings_blender_matlab.yaml';
+cpp_yaml_filename = '../../../../../data/openDTAM_settings_blender.yaml';
+
+depth_img_dirname = '../../../../../data/depth_images/';
+
 %% Read camera image names
-if(exist('../blender_model/rgb_images', 'dir'))
-    img_dirname = '../blender_model/rgb_images';
-else
+if(~exist(img_dirname, 'dir'))
     img_dirname = uigetdir('~/', 'Pick rendered rgb images directory');
-end
-
-%% Read camera poses
-if(exist('../blender_model/camera_poses.csv', 'file'))
-    poses_pathname = '../blender_model/';
-    poses_filename = 'camera_poses.csv';
-else
-    [poses_filename, poses_pathname] = ...
-        uigetfile({'*.csv'}, 'Select camera poses file');
-end
-
-poses_mat = csvread(fullfile(poses_pathname, poses_filename));
-
-poses = containers.Map('KeyType', 'int32', 'ValueType', 'any');
-for i = 1:length(poses_mat)
-    poses(int32(poses_mat(i,1))) = poses_mat(i, 2:end);
 end
 
 %% keyframe and other frames
@@ -33,12 +26,23 @@ if(~(otherframe_n <= length(rgb_images)) )
 end
 otherframe = {rgb_images(otherframe_n).name}
 
+%% Read camera poses
+if(~exist(fullfile(poses_pathname, poses_filename), 'file'))
+    [poses_filename, poses_pathname] = ...
+        uigetfile({'*.csv'}, 'Select camera poses file');
+end
+
+poses_mat = csvread(fullfile(poses_pathname, poses_filename));
+
+poses = containers.Map('KeyType', 'int32', 'ValueType', 'any');
+for i = 1:length(poses_mat)
+    poses(int32(poses_mat(i,1))) = poses_mat(i, 2:end);
+end
+
 %% read camera matrix and costvolume properties
 addpath(genpath('./'));
 
-if(exist('../../../../../data/openDTAM_settings_blender_matlab.yaml', 'file'))
-    yaml_filename = '../../../../../data/openDTAM_settings_blender_matlab.yaml';
-else
+if(~exist(yaml_filename, 'file'))
     yaml_filename = uigetfile({'*.yaml'}, ['Select camera properties ' ...
                         'yaml file']);
 end
@@ -89,16 +93,12 @@ T_mr = T_mw*T_wr;
 %% run test-depth-estimation.cpp
 disp('Running test-depth-estimation.cpp');
 
-if(exist('../../../../../data/openDTAM_settings_blender.yaml', 'file'))
-    cpp_yaml_filename = '../../../../../data/openDTAM_settings_blender.yaml';
-else
+if(~exist(cpp_yaml_filename, 'file'))
     cpp_yaml_filename = uigetfile({'*.yaml'}, ['Select camera properties ' ...
                         'yaml file']);
 end
 
-if(exist('../blender_model/depth-render-600-frames/', 'dir'))
-    depth_img_dirname = '../blender_model/depth-render-600-frames/';
-else
+if(~exist(depth_img_dirname, 'dir'))
     depth_img_dirname = uigetdir('~/', 'Pick rendered depth images directory');
 end
 
@@ -272,7 +272,7 @@ while itr < 200 && (ur ~= 1 && vr ~= 1)
         um = K(1,1)*(xm ./ abs(zm)) + K(1,3);
         vm = K(2,2)*(ym ./ abs(zm)) + K(2,3);
         
-        plot(um, vm, 'go-', 'DisplayName', 'epipolar-line');
+        plot(um, vm, 'bo-', 'DisplayName', 'epipolar-line');
         % for k=1:numel(um)
         %     text(um(k),vm(k)+10, num2str(zr(k)));
         % end
@@ -345,7 +345,7 @@ while itr < 200 && (ur ~= 1 && vr ~= 1)
         um_a = K(1,1)*(xm_a ./ abs(zm_a)) + K(1,3);
         vm_a = K(2,2)*(ym_a ./ abs(zm_a)) + K(2,3);
         
-        plot(um_a, vm_a, 'yo', 'LineWidth', 4, 'DisplayName', 'actual');
+        plot(um_a, vm_a, 'bo', 'LineWidth', 4, 'DisplayName', 'ground');
         text(double(um_a), double(vm_a-10), num2str(zr_a));
         legend('show');
         hold off;
@@ -365,7 +365,7 @@ while itr < 200 && (ur ~= 1 && vr ~= 1)
         um_p = K(1,1)*(xm_p ./ abs(zm_p)) + K(1,3);
         vm_p = K(2,2)*(ym_p ./ abs(zm_p)) + K(2,3);
         
-        plot(um_p, vm_p, 'ro', 'LineWidth', 4, 'DisplayName', 'predicted');
+        plot(um_p, vm_p, 'go', 'LineWidth', 4, 'DisplayName', 'cuda');
         legend('show');
         hold off;
 

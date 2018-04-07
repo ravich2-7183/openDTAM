@@ -42,7 +42,10 @@ include_directories("${BASEPATH}" ${OpenCV_INCLUDE_DIRS} ${CUDA_INCLUDE_DIRS} ${
 add_sources(../CostVolume.cpp
 			../CostVolume_minimizeA.cu
 			../CostVolume_update.cu
-            ./src/test_texture.cu)
+            ./src/test_texture.cu
+			../../Regulariser/Regulariser.cpp
+			../../Regulariser/Regulariser_computeG.cu
+			../../Regulariser/Regulariser_update_q_d.cu)
 
 include_directories("${BASEPATH}" ${OpenCV_INCLUDE_DIRS} ${CUDA_INCLUDE_DIRS} )
 
@@ -59,6 +62,6 @@ target_link_libraries(test-dense-mapping ${OpenCV_LIBS} ${Boost_LIBRARIES} openD
 add_executable(test-multiple-images src/test-multiple-images.cpp)
 target_link_libraries(test-multiple-images ${OpenCV_LIBS} ${Boost_LIBRARIES} openDTAM_LIB)
 
-add_executable(test-multiple-images-ahanda src/test-multiple-images-ahanda.cpp)
-target_link_libraries(test-multiple-images-ahanda ${OpenCV_LIBS} ${Boost_LIBRARIES} openDTAM_LIB)
+# add_executable(test-multiple-images-ahanda src/test-multiple-images-ahanda.cpp)
+# target_link_libraries(test-multiple-images-ahanda ${OpenCV_LIBS} ${Boost_LIBRARIES} openDTAM_LIB)
 

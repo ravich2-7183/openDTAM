@@ -12,7 +12,7 @@
 #include <tf/tf.h>
 
 #include "../../CostVolume.hpp"
-#include "testTexture.cuh"
+#include "../../../Regulariser/Regulariser.hpp"
 
 using namespace std;
 using namespace cv;
@@ -136,6 +136,15 @@ int main(int argc, char** argv) {
 	string		other_start_frame = argv[6]; 
 	string		other_end_frame	  = argv[7]; 
 
+    float		alpha_G			  = atof(argv[8]);
+	float		beta_G			  = atof(argv[9]); 
+    float		theta_start		  = atof(argv[10]); 
+    float		theta_min		  = atof(argv[11]); 
+    float		huber_epsilon	  = atof(argv[12]); 
+    float		lambda			  = atof(argv[13]); 
+
+    bool		regularize_p	  = atoi(argv[14]); 
+
 	cout << "\n img_dir        = "	<<	img_dir;
 	cout << "\n poses_filename = "	<<	poses_filename;
 	cout << "\n reference_frame      = "	<<	reference_frame;
@@ -207,14 +216,35 @@ int main(int argc, char** argv) {
 		costvolume.updateCost(im_other, Rmw, tmw);
 	}
 
-	// // output costvolume to file
-	// Mat costvolume_cpu;
-	// costvolume.cost_data.download(costvolume_cpu);
-	// matWrite("./costvolume_multiple.bin", costvolume_cpu);
+    GpuMat d;
+    cv::gpu::createContinuous(rows, cols, CV_32FC1, d);
+    costvolume.CminIdx.copyTo(d);
+
+	if(regularize_p) {
+		// denoise depth map by regularization
+		Regulariser regulariser(rows, cols, alpha_G, beta_G);
+
+		// allocate space for a and d
+		GpuMat a;
+		cv::gpu::createContinuous(rows, cols, CV_32FC1, a);
+		costvolume.CminIdx.copyTo(a);
+
+		int n = 1;
+		float theta = theta_start;
+		while(theta > theta_min && n <= 5) {
+			regulariser.update_q_d(a, d, huber_epsilon, theta);
+
+			costvolume.minimize_a(d, a, theta, lambda); // point wise search for a[] that minimizes Eaux
+
+			float beta = (theta > 1e-3)? 1e-3 : 1e-4;
+			theta *= (1-beta*n);
+			n++;
+		}
+	}
 
 	// output estimated depth to file
 	Mat inv_depth;
-	costvolume.CminIdx.download(inv_depth);
+	d.download(inv_depth);
 	matWrite("./inv_depth_multiple.bin", inv_depth);
 
 	// read and output ground truth depth image to bin file

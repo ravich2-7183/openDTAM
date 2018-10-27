@@ -5,14 +5,14 @@ An open source implementation of DTAM.
 
 Currently only the dense mapper is implemented. 
 
-## Build Instructions On Ubuntu 14.04 LTS
+# Build Instructions On Ubuntu 14.04 LTS
 
-### Install dependencies
+## Install dependencies
 
 - opencv-2.4.9
 - CUDA 3.0+
 
-### Build openDTAM
+## Build openDTAM
 
     cd openDTAM/
     mkdir build
@@ -20,8 +20,8 @@ Currently only the dense mapper is implemented.
     cmake ..
     make
 
-### Run openDTAM
+## Run openDTAM
 /path/to/openDTAM/build$ optirun -b none ./test-mapping-orb-slam ../data/openDTAM-settings.yaml
 
-### Trouble Shooting
+## Trouble Shooting
 Tested with opencv-2.4.9. Other versions might not work. 
